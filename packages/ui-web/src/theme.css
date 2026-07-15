@@ -1,0 +1,625 @@
+:root {
+  --bg: #05080a;
+  --panel-bg: #0a1310;
+  --field-bg: #050b09;
+  --accent: #7cfc9c;
+  --accent-dim: #2f4a3a;
+  --accent-glow: rgba(124, 252, 156, 0.45);
+  --text: #d7ffe4;
+  --text-dim: #7a9c88;
+  --warn: #f8b84e;
+  --font-mono: ui-monospace, 'SF Mono', 'JetBrains Mono', 'Fira Code', Menlo, Consolas, monospace;
+}
+
+/* Required before introducing fixed-width grid tracks below — without this,
+   every padded/bordered element (almost everything here) sizes itself as
+   content-box, so its rendered width exceeds its grid track by the sum of
+   its own padding+border, causing overflow into neighboring columns. */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  background:
+    radial-gradient(ellipse at top, rgba(124, 252, 156, 0.06), transparent 60%),
+    repeating-linear-gradient(
+      0deg,
+      rgba(124, 252, 156, 0.025) 0px,
+      rgba(124, 252, 156, 0.025) 1px,
+      transparent 1px,
+      transparent 3px
+    ),
+    var(--bg);
+}
+
+.osci-app {
+  font-family: var(--font-mono);
+  color: var(--text);
+}
+
+/* One-page dashboard: three independently-heighted columns (Shapes | Scope+
+   Effects | Synth) — a separate row below for Keyboard/MIDI, and a
+   full-width playback bar below that. Keyboard/MIDI and the playback bar
+   are deliberately NOT part of this grid: a named-grid-area row's height is
+   set by its tallest cell, so putting them in a row shared with Synth (much
+   taller than Shapes/Scope) would force them to wait for Synth's full
+   height before starting, leaving a large empty gap under the shorter
+   columns. `align-items: start` keeps each column sized to its own content
+   instead of stretching to match its neighbors. */
+.osci-dashboard {
+  display: grid;
+  grid-template-columns: 280px 1fr 340px;
+  grid-template-areas: 'shapes scope synth';
+  align-items: start;
+  gap: 1rem;
+  max-width: 1400px;
+  margin: 1rem auto;
+  padding: 0 1rem;
+}
+
+.osci-col-shapes,
+.osci-col-scope,
+.osci-col-synth {
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+  min-width: 0;
+}
+
+.osci-col-shapes {
+  grid-area: shapes;
+}
+
+.osci-col-scope {
+  grid-area: scope;
+  align-items: center;
+}
+
+.osci-col-synth {
+  grid-area: synth;
+}
+
+/* Its own small grid (Keyboard wide, MIDI narrow) — separate from
+   .osci-dashboard above, so its row-height sharing only ever happens
+   between Keyboard and MIDI (both short), never with Synth. */
+.osci-bottom-row {
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  align-items: start;
+  gap: 1rem;
+  max-width: 1400px;
+  margin: 1rem auto;
+  padding: 0 1rem;
+}
+
+.osci-playback-bar {
+  max-width: 1400px;
+  margin: 1rem auto;
+  padding: 0 1rem;
+}
+
+/* Basic safety net, not full responsive design — stacks to one column
+   rather than visually breaking if the window is narrower than a desktop
+   3-column layout comfortably fits. */
+@media (max-width: 1100px) {
+  .osci-dashboard {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      'shapes'
+      'scope'
+      'synth';
+  }
+
+  .osci-bottom-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.osci-title {
+  font-size: 1rem;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  color: var(--accent);
+  text-shadow: 0 0 8px var(--accent-glow);
+  border-bottom: 1px solid var(--accent-dim);
+  padding-bottom: 0.6rem;
+  margin: 0;
+}
+
+.osci-canvas {
+  background: #000;
+  border-radius: 4px;
+  align-self: center;
+  border: 1px solid var(--accent-dim);
+  box-shadow:
+    0 0 24px var(--accent-glow),
+    inset 0 0 40px rgba(124, 252, 156, 0.08);
+}
+
+.osci-section {
+  display: flex;
+  flex-direction: column;
+}
+
+.osci-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.osci-section-title {
+  font-size: 0.8rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin: 0;
+}
+
+.osci-button-row {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+/* A compact 3-row table for a group of knobs: one row of short labels, one
+   row of the knobs themselves, one row of current values — all aligned in
+   columns via grid-auto-flow, rather than each knob getting its own
+   repeated label+value text block stacked above it (which left knobs
+   landing at inconsistent heights depending on how much text wrapped).
+   Emit exactly 3 children per knob (label span, control, value span) in
+   that order — a hidden <input type=range> knobify() replaces is removed
+   from grid flow entirely via display:none, so it doesn't consume a slot;
+   only the visible .osci-knob div it inserts does. A <select> with no
+   separate value display still needs an (empty) value span to keep every
+   column's item count at 3, or later columns shift out of alignment. */
+.osci-knob-group {
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-rows: auto auto auto;
+  column-gap: 0.9rem;
+  row-gap: 0.3rem;
+  align-items: center;
+  justify-items: center;
+}
+
+.osci-knob-group-label,
+.osci-knob-group-value {
+  font-size: 0.68rem;
+  color: var(--text-dim);
+  text-align: center;
+}
+
+.osci-knob-group-value {
+  color: var(--text);
+}
+
+/* Same idea as .osci-knob-group but 2 rows (label, control) — for plain
+   number/select inputs that already display their own value, so there's no
+   separate value row to align. */
+.osci-control-group {
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-rows: auto auto;
+  column-gap: 0.7rem;
+  row-gap: 0.3rem;
+  align-items: center;
+}
+
+.osci-control-group-label {
+  font-size: 0.7rem;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+/* Small "?" badge replacing a permanently-visible instructional paragraph —
+   click to toggle the full text in a popover (see the toggle-help click
+   handler in app.ts; a native title attribute only supports hover/long-press,
+   not click). Positioned relative so .osci-help-popover can anchor to it. */
+.osci-help-wrap {
+  position: relative;
+  display: inline-block;
+}
+
+.osci-help {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.1rem;
+  height: 1.1rem;
+  padding: 0;
+  margin: 0;
+  line-height: 1;
+  border: 1px solid var(--accent-dim);
+  border-radius: 50%;
+  background: transparent;
+  font-size: 0.65rem;
+  text-transform: none;
+  letter-spacing: normal;
+  color: var(--text-dim);
+  cursor: pointer;
+  vertical-align: middle;
+}
+
+.osci-help:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  box-shadow: none;
+}
+
+.osci-help-popover {
+  position: absolute;
+  top: 140%;
+  left: 0;
+  z-index: 10;
+  width: 260px;
+  padding: 0.6rem 0.7rem;
+  background: var(--panel-bg);
+  border: 1px solid var(--accent-dim);
+  border-radius: 4px;
+  box-shadow: 0 0 14px rgba(0, 0, 0, 0.5);
+  font-size: 0.7rem;
+  font-weight: normal;
+  text-transform: none;
+  letter-spacing: normal;
+  color: var(--text-dim);
+  line-height: 1.4;
+}
+
+.osci-help-popover[hidden] {
+  display: none;
+}
+
+.osci-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.6rem;
+}
+
+/* Effect cards read better as a wrapped horizontal row than a tall stack —
+   scoped by id rather than changing .osci-list itself, since the layers
+   list (a stack of one-line collapsed rows) still wants the vertical
+   layout above. */
+#effects-list.osci-list,
+#layer-effects-panel .osci-list {
+  flex-direction: row;
+  flex-wrap: wrap;
+}
+
+#effects-list.osci-list > *,
+#layer-effects-panel .osci-list > * {
+  flex: 1 1 220px;
+}
+
+/* Collapsed one-line summary for every shape layer except the selected
+   one — click anywhere on the row to select/expand it. */
+.osci-layer-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  padding: 0.5rem 0.7rem;
+}
+
+.osci-layer-row:hover {
+  border-color: var(--accent);
+}
+
+.osci-layer-row-type {
+  font-size: 0.65rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  border: 1px solid var(--accent-dim);
+  border-radius: 3px;
+  padding: 0.1rem 0.35rem;
+  white-space: nowrap;
+}
+
+.osci-layer-row-label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+}
+
+.osci-card {
+  border: 1px solid var(--accent-dim);
+  background: var(--panel-bg);
+  padding: 0.6rem 0.7rem;
+  border-radius: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  box-shadow: 0 0 14px rgba(0, 0, 0, 0.45);
+}
+
+.osci-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.osci-card-header strong {
+  color: var(--accent);
+  letter-spacing: 0.05em;
+  font-weight: 600;
+}
+
+.osci-card-actions {
+  display: flex;
+  gap: 0.3rem;
+}
+
+button {
+  font-family: var(--font-mono);
+  background: #0d1a15;
+  color: var(--accent);
+  border: 1px solid var(--accent-dim);
+  border-radius: 3px;
+  padding: 0.3rem 0.6rem;
+  cursor: pointer;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  font-size: 0.72rem;
+  transition:
+    box-shadow 0.15s ease,
+    background 0.15s ease;
+}
+
+button:hover:not(:disabled) {
+  background: #14261e;
+  box-shadow: 0 0 10px var(--accent-glow);
+}
+
+button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.osci-toggle {
+  align-self: flex-start;
+  font-size: 0.85rem;
+  padding: 0.5rem 1.4rem;
+}
+
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  letter-spacing: 0.02em;
+}
+
+.osci-inline-label {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+input[type='text'],
+input[type='number'],
+select,
+textarea {
+  font-family: var(--font-mono);
+  background: var(--field-bg);
+  color: var(--text);
+  border: 1px solid var(--accent-dim);
+  border-radius: 3px;
+  padding: 0.25rem 0.4rem;
+  font-size: 0.8rem;
+}
+
+/* Without this, the browser assumes a light background and renders the
+   number-input spinner arrows in a dark color that's invisible against
+   this theme's dark fields — color-scheme tells it to use its dark-mode
+   form-control chrome instead, which is properly visible here. */
+input[type='number'] {
+  color-scheme: dark;
+}
+
+input[type='text']:focus,
+input[type='number']:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 8px var(--accent-glow);
+}
+
+textarea {
+  resize: vertical;
+}
+
+input[type='range'] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 4px;
+  background: var(--accent-dim);
+  border-radius: 2px;
+  outline: none;
+}
+
+input[type='range']::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 8px var(--accent-glow);
+  cursor: pointer;
+}
+
+input[type='range']::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border: none;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 8px var(--accent-glow);
+  cursor: pointer;
+}
+
+/* Rotary knob overlay (see knob.ts) — the actual <input type="range"> this
+   sits next to is hidden but stays functional; the knob only ever sets its
+   value and dispatches a real 'input' event, so every existing listener is
+   unaffected by this being a knob instead of a slider. */
+.osci-knob-source {
+  display: none;
+}
+
+.osci-knob {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  margin: 0.2rem 0;
+  border-radius: 50%;
+  background: var(--field-bg);
+  border: 1px solid var(--accent-dim);
+  box-shadow: 0 0 8px rgba(0, 0, 0, 0.4);
+  cursor: ns-resize;
+  touch-action: none;
+  user-select: none;
+}
+
+.osci-knob:hover {
+  border-color: var(--accent);
+  box-shadow: 0 0 10px var(--accent-glow);
+}
+
+.osci-knob-indicator {
+  position: absolute;
+  top: 4px;
+  left: 50%;
+  width: 2px;
+  height: 42%;
+  margin-left: -1px;
+  background: var(--accent);
+  box-shadow: 0 0 6px var(--accent-glow);
+  transform-origin: bottom center;
+  pointer-events: none;
+}
+
+/* Smart Chords' 2D pad (see xy-pad.ts) — horizontal axis: pitch range,
+   vertical axis: density. Same hidden-input-stays-source-of-truth trick as
+   .osci-knob-source, just for two inputs at once instead of one. */
+.osci-xy-pad-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+  margin: 0.3rem 0;
+}
+
+.osci-xy-pad {
+  position: relative;
+  width: 100%;
+  max-width: 220px;
+  height: 110px;
+  background: var(--field-bg);
+  border: 1px solid var(--accent-dim);
+  border-radius: 4px;
+  cursor: crosshair;
+  touch-action: none;
+  user-select: none;
+}
+
+.osci-xy-pad:hover {
+  border-color: var(--accent);
+  box-shadow: 0 0 10px var(--accent-glow);
+}
+
+.osci-xy-pad input[type='range'] {
+  display: none;
+}
+
+.osci-xy-pad-cursor {
+  position: absolute;
+  width: 9px;
+  height: 9px;
+  margin: -5px;
+  background: var(--accent);
+  border-radius: 50%;
+  box-shadow: 0 0 8px var(--accent-glow);
+  pointer-events: none;
+}
+
+.osci-xy-pad-labels {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  max-width: 220px;
+  font-size: 0.65rem;
+  color: var(--text-dim);
+}
+
+.osci-warning {
+  color: var(--warn);
+  font-size: 0.75rem;
+  border-left: 2px solid var(--warn);
+  padding-left: 0.6rem;
+  margin: 0;
+}
+
+.osci-keyboard {
+  display: flex;
+  align-items: flex-start;
+  gap: 1px;
+  height: 70px;
+  background: var(--field-bg);
+  border: 1px solid var(--accent-dim);
+  border-radius: 4px;
+  padding: 4px;
+}
+
+.osci-key {
+  flex: 1;
+  border-radius: 2px;
+  transition:
+    background 0.05s ease,
+    box-shadow 0.05s ease;
+}
+
+.osci-key-white {
+  height: 100%;
+  background: #1a2420;
+  border: 1px solid var(--accent-dim);
+}
+
+.osci-key-black {
+  flex: 0.7;
+  height: 60%;
+  background: #05100a;
+  border: 1px solid var(--accent-dim);
+}
+
+.osci-key-active {
+  background: var(--accent) !important;
+  box-shadow: 0 0 10px var(--accent-glow);
+}
+
+.osci-midi-learning::-webkit-slider-thumb {
+  background: var(--warn);
+  box-shadow: 0 0 12px var(--warn);
+  animation: osci-midi-pulse 0.6s ease-in-out infinite alternate;
+}
+
+.osci-midi-mapped::-webkit-slider-thumb {
+  box-shadow: 0 0 12px var(--accent-glow), 0 0 4px 2px var(--accent);
+}
+
+@keyframes osci-midi-pulse {
+  from {
+    opacity: 0.5;
+  }
+  to {
+    opacity: 1;
+  }
+}

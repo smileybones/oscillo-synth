@@ -1,0 +1,14 @@
+export { createAudioGraph, sendSamples, seekAudioTo } from './audio/audio-graph';
+export type { AudioGraph } from './audio/audio-graph';
+export { XyPreview } from './canvas/xy-preview';
+export type { XyPreviewOptions, XyBuffer } from './canvas/xy-preview';
+export { WaveformPreview } from './canvas/waveform-preview';
+export { extractPathData } from './file-io/svg-loader';
+export { decodeAudioFile } from './audio/audio-file-loader';
+export type { DecodedAudio } from './audio/audio-file-loader';
+export { VideoFrameGrabber } from './video/video-frame-grabber';
+export type { PixelBuffer } from './video/video-frame-grabber';
+export { MidiManager } from './midi/midi-manager';
+export type { MidiListener, NoteListener } from './midi/midi-manager';
+export { createSynthGraph, sendNoteOn, sendNoteOff, sendSynthParams } from './synth/synth-graph';
+export type { SynthGraph } from './synth/synth-graph';

@@ -1,0 +1,13 @@
+{
+  "name": "oscillo-synth",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "pnpm --filter @oscillo-synth/web dev",
+    "build": "pnpm --filter @oscillo-synth/web build",
+    "typecheck": "pnpm -r --if-present typecheck"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0"
+  }
+}
