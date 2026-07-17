@@ -23,19 +23,22 @@ mac:
 dmg:
   artifactName: 'oscillo-synth-${version}.${ext}'
   background: build/background.png
-  # background.png is 1448x1086 — treated as a @2x retina asset, so the
-  # window itself is set to half that (724x543) to match. Icon positions are
-  # a first guess (left = app, right = Applications link, both vertically
-  # centered); confirm the DMG actually looks right against the artwork and
-  # adjust these if the background has its own drag-arrow/layout guides.
+  # background.png is 1448x1086 (exactly 4:3) — window kept at that same 4:3
+  # ratio (600x450, a more standard install-window size than the previous
+  # 724x543) so the art scales down cleanly instead of stretching. Icon
+  # positions eyeballed from the artwork's own drag-arrow (which points
+  # roughly left-to-right through the center, above the "Drag to Install"
+  # caption panel) and converted from the image's pixel space into the
+  # window's point space (scale factor 600/1448 ≈ 0.414) — still a visual
+  # estimate, not pixel-measured, so confirm against the real artwork.
   window:
-    width: 724
-    height: 543
+    width: 600
+    height: 450
   contents:
-    - x: 180
-      y: 280
-    - x: 544
-      y: 280
+    - x: 190
+      y: 230
+    - x: 410
+      y: 230
       type: link
       path: /Applications
 win:
