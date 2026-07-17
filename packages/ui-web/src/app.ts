@@ -2352,15 +2352,19 @@ export function createApp(root: HTMLElement): void {
   // leaving it focused meant it could still intercept later keystrokes for
   // its own built-in type-ahead-to-option behavior (e.g. the computer
   // keyboard's "S" note jumping a focused waveform dropdown to "Square").
-  // 'change' alone isn't enough: clicking the option that's already
-  // selected closes the dropdown without firing 'change' (the value didn't
-  // change), leaving the select focused and the bug back. 'click' fires on
-  // the select after that interaction either way, so blur on both.
-  const blurSelectOnPick = (event: Event): void => {
+  //
+  // Known remaining gap: clicking the option that's already selected closes
+  // the native dropdown without firing 'change' (the value didn't change),
+  // so the select stays focused and this bug can resurface in that one
+  // case. A 'click'-based blur was tried to close that gap and made things
+  // much worse — 'click' fires on the select the moment it's OPENED, not
+  // after a choice is made (confirmed with a throwaway Playwright script),
+  // so it was blurring/closing the dropdown before the user could pick
+  // anything at all. Reverted; the narrow reselect-same-value gap is a much
+  // smaller problem than dropdowns not opening.
+  root.addEventListener('change', (event) => {
     if (event.target instanceof HTMLSelectElement) event.target.blur();
-  };
-  root.addEventListener('change', blurSelectOnPick);
-  root.addEventListener('click', blurSelectOnPick);
+  });
 
   midiManager.onMessage((cc, value, channel) => {
     const key = `${channel}:${cc}`;
