@@ -8,6 +8,10 @@
     "type": "git",
     "url": "https://github.com/smileybones/oscillo-synth.git"
   },
+  "engines": {
+    "node": ">=18"
+  },
+  "packageManager": "pnpm@10.19.0",
   "scripts": {
     "dev": "pnpm --filter @oscillo-synth/web dev",
     "build": "pnpm --filter @oscillo-synth/web build",
