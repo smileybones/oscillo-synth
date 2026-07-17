@@ -1,6 +1,7 @@
 import './theme.css';
 import { enhanceRangeInputsAsKnobs } from './knob';
 import { xyPadify } from './xy-pad';
+import defaultFontUrl from './assets/fonts/Arimo-Regular.woff?url';
 import {
   ParametricSource,
   SvgSource,
@@ -373,11 +374,14 @@ const COMPUTER_KEYBOARD_VELOCITY = 100;
 
 // Bundled Apache-2.0-licensed fallback so "+ Add text" works immediately
 // without requiring the user to hunt down a font file first (see
-// public/fonts/). Arimo is a metric/visual match for Arial.
+// assets/fonts/). Arimo is a metric/visual match for Arial. Imported as a
+// build-time-resolved URL (not a hardcoded absolute path) so it works both
+// served from an HTTP origin root (apps/web) and loaded over file:// with a
+// relative base (apps/desktop's Electron shell).
 let defaultFontPromise: Promise<Font | null> | null = null;
 function getDefaultFont(): Promise<Font | null> {
   if (!defaultFontPromise) {
-    defaultFontPromise = fetch('/fonts/Arimo-Regular.woff')
+    defaultFontPromise = fetch(defaultFontUrl)
       .then((res) => res.arrayBuffer())
       .then((buffer) => parseFont(buffer))
       .catch((err) => {

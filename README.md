@@ -27,6 +27,10 @@ MIDI CC learn is available for mapping trace frequency and output level to a har
 
 Requires [Node](https://nodejs.org/) 18+ and [pnpm](https://pnpm.io/).
 
+There are two ways to run oscillo-synth — pick whichever you prefer, neither is going away:
+
+**In the browser** (zero install):
+
 ```bash
 pnpm install
 pnpm dev
@@ -34,11 +38,21 @@ pnpm dev
 
 Open the printed local URL. Everything runs client-side — no server/backend involved.
 
+**As a native desktop app** (Electron — same app, packaged as an installable window instead of a browser tab):
+
+```bash
+pnpm install
+pnpm dev:desktop
+```
+
+To build an installer for your OS: `pnpm --filter @oscillo-synth/desktop package:mac` (or `package:win` / `package:linux`).
+
 Other useful commands:
 
 ```bash
-pnpm build       # production build (apps/web)
-pnpm typecheck   # typecheck every package
+pnpm build           # production build (apps/web)
+pnpm build:desktop   # production build (apps/desktop)
+pnpm typecheck       # typecheck every package
 ```
 
 ## Project structure
@@ -47,13 +61,14 @@ A pnpm workspace monorepo:
 
 - `packages/engine` — pure TypeScript: shape sources, effects, the render pipeline, and the synth's DSP (oscillator, filter, envelope, LFO, arpeggiator, mod matrix, Smart Chords). No DOM/Web Audio dependencies, so it's usable from a worklet or any other host.
 - `packages/platform-web` — the browser-specific layer: Web Audio graph setup, the render and synth `AudioWorklet`s, MIDI, and the canvas previews (X/Y trace and oscilloscope waveform).
-- `packages/ui-web` — the app itself: a single-file UI (`app.ts`) built from plain HTML template strings and event delegation, no framework.
+- `packages/ui-web` — the app itself: a single-file UI (`app.ts`) built from plain HTML template strings and event delegation, no framework. Shared by both `apps/web` and `apps/desktop` unchanged.
 - `packages/shared-types` — types shared across packages.
-- `apps/web` — the Vite entry point that ties it together.
+- `apps/web` — the Vite entry point for the browser version.
+- `apps/desktop` — the Electron shell for the native desktop version (built with `electron-vite`/`electron-builder`), wrapping `packages/ui-web` in an installable app.
 
 ## Roadmap
 
-- **Native desktop app** — a packaged native build, not just the browser version.
+- ~~**Native desktop app**~~ — done, see `apps/desktop` above. Unsigned for now (no Apple Developer ID / Windows code-signing cert yet), so expect a Gatekeeper/SmartScreen warning on first launch.
 - **VST3/AU plugin packaging** — running the synth (and shape-tracing engine) as a plugin inside a DAW.
 
 ## License

@@ -15,6 +15,8 @@
   "scripts": {
     "dev": "pnpm --filter @oscillo-synth/web dev",
     "build": "pnpm --filter @oscillo-synth/web build",
+    "dev:desktop": "pnpm --filter @oscillo-synth/desktop dev",
+    "build:desktop": "pnpm --filter @oscillo-synth/desktop build",
     "typecheck": "pnpm -r --if-present typecheck"
   },
   "devDependencies": {

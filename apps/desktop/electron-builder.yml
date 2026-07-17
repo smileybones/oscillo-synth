@@ -1,0 +1,32 @@
+appId: com.oscillosynth.app
+productName: Oscillo Synth
+directories:
+  buildResources: build
+files:
+  - '!**/.vscode/*'
+  - '!src/*'
+  - '!electron.vite.config.{js,ts,mjs,cjs}'
+  - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
+  - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
+asarUnpack: []
+npmRebuild: false
+mac:
+  entitlementsInherit: build/entitlements.mac.plist
+  category: public.app-category.music
+  notarize: false
+dmg:
+  artifactName: '${name}-${version}.${ext}'
+win:
+  executableName: oscillo-synth
+nsis:
+  artifactName: '${name}-${version}-setup.${ext}'
+  shortcutName: '${productName}'
+  uninstallDisplayName: '${productName}'
+  createDesktopShortcut: always
+linux:
+  target:
+    - AppImage
+    - deb
+  category: AudioVideo
+appImage:
+  artifactName: '${name}-${version}.${ext}'
