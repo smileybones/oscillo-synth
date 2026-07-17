@@ -71,8 +71,13 @@ export function xyPadify(pad: HTMLElement, xInput: HTMLInputElement, yInput: HTM
     const onUp = (): void => {
       pad.removeEventListener('pointermove', onMove);
       pad.removeEventListener('pointerup', onUp);
+      pad.removeEventListener('pointercancel', onUp);
     };
     pad.addEventListener('pointermove', onMove);
     pad.addEventListener('pointerup', onUp);
+    // See knob.ts's identical fix — a drag interrupted by the browser/OS
+    // fires 'pointercancel' instead of 'pointerup', and without this the
+    // pad keeps tracking pointer movement forever after that happens.
+    pad.addEventListener('pointercancel', onUp);
   });
 }

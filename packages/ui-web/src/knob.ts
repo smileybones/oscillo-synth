@@ -77,9 +77,16 @@ function knobify(input: HTMLInputElement): void {
     const onUp = (): void => {
       knob.removeEventListener('pointermove', onMove);
       knob.removeEventListener('pointerup', onUp);
+      knob.removeEventListener('pointercancel', onUp);
     };
     knob.addEventListener('pointermove', onMove);
     knob.addEventListener('pointerup', onUp);
+    // Without this, a drag interrupted by the browser/OS (e.g. dragging
+    // fast enough to trigger gesture arbitration) fires 'pointercancel'
+    // instead of 'pointerup' — onUp never runs, onMove stays attached
+    // forever, and the knob keeps turning from any later pointer movement
+    // even with the button released.
+    knob.addEventListener('pointercancel', onUp);
   });
 
   knob.addEventListener('dblclick', () => {

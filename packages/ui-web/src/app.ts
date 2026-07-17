@@ -347,10 +347,13 @@ function genId(): string {
 }
 
 // Standard "typing piano" layout (same convention as Ableton/GarageBand's
-// computer-keyboard input): the row of letter keys plays white notes C4-E5,
-// with the row above filling in the black keys. Keyed by KeyboardEvent.code
-// (physical position) rather than .key, so it stays correct regardless of
-// layout/modifier state.
+// computer-keyboard input): the ZXCV row plays white notes C4-E5, with the
+// ASDF row above filling in the black keys — then the same pattern repeats
+// an octave-and-a-half higher, QWERTY row for whites (F5-A6) and the number
+// row above it for blacks, so the two row-pairs stack the same way the keys
+// themselves physically stack (higher row = higher pitch). Keyed by
+// KeyboardEvent.code (physical position) rather than .key, so it stays
+// correct regardless of layout/modifier state.
 const COMPUTER_KEYBOARD_NOTE_MAP: Record<string, number> = {
   KeyZ: 60,
   KeyS: 61,
@@ -369,6 +372,23 @@ const COMPUTER_KEYBOARD_NOTE_MAP: Record<string, number> = {
   Period: 74,
   Semicolon: 75,
   Slash: 76,
+  KeyQ: 77,
+  Digit2: 78,
+  KeyW: 79,
+  Digit3: 80,
+  KeyE: 81,
+  Digit4: 82,
+  KeyR: 83,
+  KeyT: 84,
+  Digit6: 85,
+  KeyY: 86,
+  Digit7: 87,
+  KeyU: 88,
+  KeyI: 89,
+  Digit9: 90,
+  KeyO: 91,
+  Digit0: 92,
+  KeyP: 93,
 };
 const COMPUTER_KEYBOARD_VELOCITY = 100;
 
@@ -402,10 +422,11 @@ function midiNoteName(note: number): string {
   return `${NOTE_NAMES[note % 12]}${octave}`;
 }
 
-// C2 through E5 — spans a bit more than the computer-keyboard fallback's own
-// range (up to E5), so every key it can trigger has a visible key here too.
+// C2 through A6 — matches the computer-keyboard fallback's top end (A6, see
+// COMPUTER_KEYBOARD_NOTE_MAP) so every key it can trigger has a visible key
+// here too; extra headroom below C4 for MIDI-only lower notes.
 const KEYBOARD_START_NOTE = 36;
-const KEYBOARD_END_NOTE = 76;
+const KEYBOARD_END_NOTE = 93;
 const BLACK_KEY_SEMITONES = new Set([1, 3, 6, 8, 10]);
 
 // Flat left-to-right strip rather than true overlapping piano geometry —
@@ -709,7 +730,7 @@ export function createApp(root: HTMLElement): void {
                 <span class="osci-help-wrap">
                   <button type="button" class="osci-help" data-action="toggle-help">?</button>
                   <div class="osci-help-popover" data-help-popover hidden>
-                    Plays notes from a MIDI keyboard through this device's speakers, independent of the shape-tracing Start button below. No MIDI keyboard? Enable Computer Keyboard and play with: Z S X D C V G B H N J M , L . ; / (Z = C4) — disabled while typing in a text field. While enabled, the main oscilloscope screen shows this synth's live waveform instead of the shape/audio trace.
+                    Plays notes from a MIDI keyboard through this device's speakers, independent of the shape-tracing Start button below. No MIDI keyboard? Enable Computer Keyboard and play with: Z S X D C V G B H N J M , L . ; / (Z = C4), continuing an octave-and-a-half higher with Q 2 W 3 E 4 R T 6 Y 7 U I 9 O 0 P (Q = F5) — disabled while typing in a text field. While enabled, the main oscilloscope screen shows this synth's live waveform instead of the shape/audio trace.
                   </div>
                 </span>
               </h2>
@@ -2305,9 +2326,15 @@ export function createApp(root: HTMLElement): void {
   // leaving it focused meant it could still intercept later keystrokes for
   // its own built-in type-ahead-to-option behavior (e.g. the computer
   // keyboard's "S" note jumping a focused waveform dropdown to "Square").
-  root.addEventListener('change', (event) => {
+  // 'change' alone isn't enough: clicking the option that's already
+  // selected closes the dropdown without firing 'change' (the value didn't
+  // change), leaving the select focused and the bug back. 'click' fires on
+  // the select after that interaction either way, so blur on both.
+  const blurSelectOnPick = (event: Event): void => {
     if (event.target instanceof HTMLSelectElement) event.target.blur();
-  });
+  };
+  root.addEventListener('change', blurSelectOnPick);
+  root.addEventListener('click', blurSelectOnPick);
 
   midiManager.onMessage((cc, value, channel) => {
     const key = `${channel}:${cc}`;
