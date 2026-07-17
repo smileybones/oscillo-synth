@@ -4,6 +4,8 @@ A browser-based oscilloscope art and synth instrument. Draw shapes, SVGs, text, 
 
 ![oscillo-synth screenshot](docs/screenshot.png)
 
+> **Note:** the X/Y output hasn't been tested on a real oscilloscope yet — it's only been verified against the on-screen preview so far. If you try it on actual hardware, keep the output level low to start, and let us know how it goes.
+
 ## What it does
 
 **Shape tracing**
@@ -48,6 +50,11 @@ A pnpm workspace monorepo:
 - `packages/ui-web` — the app itself: a single-file UI (`app.ts`) built from plain HTML template strings and event delegation, no framework.
 - `packages/shared-types` — types shared across packages.
 - `apps/web` — the Vite entry point that ties it together.
+
+## Roadmap
+
+- **Native desktop app** — a packaged native build, not just the browser version.
+- **VST3/AU plugin packaging** — running the synth (and shape-tracing engine) as a plugin inside a DAW.
 
 ## License
 
