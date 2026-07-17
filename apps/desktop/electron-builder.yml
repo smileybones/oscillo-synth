@@ -16,12 +16,30 @@ files:
 asarUnpack: []
 npmRebuild: false
 mac:
+  icon: build/icon.png
   entitlementsInherit: build/entitlements.mac.plist
   category: public.app-category.music
   notarize: false
 dmg:
   artifactName: 'oscillo-synth-${version}.${ext}'
+  background: build/background.png
+  # background.png is 1448x1086 — treated as a @2x retina asset, so the
+  # window itself is set to half that (724x543) to match. Icon positions are
+  # a first guess (left = app, right = Applications link, both vertically
+  # centered); confirm the DMG actually looks right against the artwork and
+  # adjust these if the background has its own drag-arrow/layout guides.
+  window:
+    width: 724
+    height: 543
+  contents:
+    - x: 180
+      y: 280
+    - x: 544
+      y: 280
+      type: link
+      path: /Applications
 win:
+  icon: build/icon-windows.png
   executableName: oscillo-synth
 nsis:
   artifactName: 'oscillo-synth-${version}-setup.${ext}'
@@ -29,6 +47,7 @@ nsis:
   uninstallDisplayName: '${productName}'
   createDesktopShortcut: always
 linux:
+  icon: build/icon-linux.png
   target:
     - AppImage
     - deb
