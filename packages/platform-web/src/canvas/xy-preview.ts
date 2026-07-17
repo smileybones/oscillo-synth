@@ -1,3 +1,5 @@
+import { drawGraticule } from './graticule';
+
 export interface XyPreviewOptions {
   /** How much the background fades toward black each frame (0..1, higher = faster decay). */
   decay?: number;
@@ -77,6 +79,7 @@ export class XyPreview {
     const { ctx, canvas } = this;
     ctx.fillStyle = `rgba(0, 0, 0, ${this.decay})`;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
+    drawGraticule(ctx, canvas.width, canvas.height);
 
     if (!this.buffer || this.buffer.left.length === 0) {
       this.lastFrameTime = now;

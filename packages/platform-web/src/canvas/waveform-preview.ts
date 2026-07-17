@@ -1,3 +1,5 @@
+import { drawGraticule } from './graticule';
+
 // Classic time-domain oscilloscope trace (amplitude vs. time, one channel) —
 // the "this is what a sawtooth/sine/noise wave actually looks like" view,
 // as opposed to XyPreview's X/Y Lissajous-art plot of two channels against
@@ -44,6 +46,7 @@ export class WaveformPreview {
     const { ctx, canvas } = this;
     ctx.fillStyle = '#000';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
+    drawGraticule(ctx, canvas.width, canvas.height);
 
     if (!this.analyser) return;
     this.analyser.getFloatTimeDomainData(this.buffer);

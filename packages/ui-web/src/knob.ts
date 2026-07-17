@@ -38,8 +38,13 @@ function knobify(input: HTMLInputElement): void {
   input.insertAdjacentElement('afterend', knob);
 
   const applyAngle = (): void => {
-    const angle = KNOB_MIN_ANGLE + valueFraction(input) * (KNOB_MAX_ANGLE - KNOB_MIN_ANGLE);
+    const fraction = valueFraction(input);
+    const angle = KNOB_MIN_ANGLE + fraction * (KNOB_MAX_ANGLE - KNOB_MIN_ANGLE);
     indicator.style.transform = `rotate(${angle}deg)`;
+    // Drives the conic-gradient value arc in CSS (see .osci-knob) — a
+    // graduated scale printed on the knob face, like a real potentiometer's
+    // arc, rather than just a bare pointer with nothing to compare it to.
+    knob.style.setProperty('--value-fraction', String(fraction));
   };
   applyAngle();
   // Keeps the knob visually in sync with value changes that didn't come from

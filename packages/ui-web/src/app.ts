@@ -453,31 +453,25 @@ function renderControlGroup(items: { label: string; control: string }[]): string
 
 const MOD_SOURCES: ModSource[] = ['envelope', 'lfo'];
 const MOD_DESTINATIONS: ModDestination[] = ['pitch', 'cutoff', 'amp'];
-const MOD_SOURCE_LABELS: Record<ModSource, string> = { envelope: 'Envelope', lfo: 'LFO' };
+const MOD_SOURCE_LABELS: Record<ModSource, string> = { envelope: 'Env', lfo: 'LFO' };
 const MOD_DESTINATION_LABELS: Record<ModDestination, string> = { pitch: 'Pitch', cutoff: 'Cutoff', amp: 'Amp' };
 
 // A fixed 2x3 grid — every source/destination pair always has a slider, so
 // there's no add/remove-connection UI to build, just plain sliders reusing
 // the same event-delegation pattern as every other list in this file.
+// A proper grid (row-label column + one column per destination) instead of
+// wrapped flex rows with 5rem-min-width labels — the flex version was far
+// too wide to ever fit in the Synth panel's 2-up subcard packing.
 function renderModMatrixHtml(synthParams: SynthParams): string {
+  const destHeaders = MOD_DESTINATIONS.map((d) => `<span class="osci-modmatrix-label">${MOD_DESTINATION_LABELS[d]}</span>`).join('');
   const rows = MOD_SOURCES.map((source) => {
     const cells = MOD_DESTINATIONS.map((destination) => {
       const connection = synthParams.modMatrix.find((c) => c.source === source && c.destination === destination)!;
-      return `
-        <label style="min-width:5rem;">${MOD_DESTINATION_LABELS[destination]}
-          <input type="range" min="-1" max="1" step="0.01" value="${connection.amount}"
-            data-action="set-mod-amount" data-source="${source}" data-destination="${destination}" />
-        </label>
-      `;
+      return `<input type="range" min="-1" max="1" step="0.01" value="${connection.amount}" data-action="set-mod-amount" data-source="${source}" data-destination="${destination}" />`;
     }).join('');
-    return `
-      <div style="display:flex;gap:0.6rem;align-items:center;flex-wrap:wrap;">
-        <strong style="min-width:4.5rem;font-size:0.75rem;color:var(--text-dim);">${MOD_SOURCE_LABELS[source]}</strong>
-        ${cells}
-      </div>
-    `;
+    return `<span class="osci-modmatrix-label">${MOD_SOURCE_LABELS[source]}</span>${cells}`;
   }).join('');
-  return `<div id="mod-matrix-grid" style="display:flex;flex-direction:column;gap:0.5rem;">${rows}</div>`;
+  return `<div id="mod-matrix-grid" class="osci-modmatrix-grid"><span></span>${destHeaders}${rows}</div>`;
 }
 
 function formatTime(seconds: number): string {
@@ -682,7 +676,7 @@ export function createApp(root: HTMLElement): void {
 
         <div class="osci-col-scope">
           <h1 class="osci-title">oscillo-synth</h1>
-          <canvas id="preview" class="osci-canvas" width="440" height="440"></canvas>
+          <canvas id="preview" class="osci-canvas" width="380" height="380"></canvas>
           <p id="preview-mode-label" style="font-size:0.72rem;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.1em;text-align:center;margin:-0.6rem 0 0;">Shape / Audio Trace</p>
 
           <div id="layer-effects-panel"></div>
@@ -721,163 +715,172 @@ export function createApp(root: HTMLElement): void {
               </div>
             </div>
             <p id="synth-status" style="font-size:0.75rem;color:var(--warn);margin:0;display:none;"></p>
-            <label>Waveform
-              <select id="synth-waveform">
-                <option value="sine">Sine</option>
-                <option value="saw">Saw</option>
-                <option value="square">Square</option>
-                <option value="triangle">Triangle</option>
-              </select>
-            </label>
-            <div class="osci-card-header">
-              <span style="font-size:0.72rem;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.1em;">ADSR</span>
-            </div>
-            ${renderKnobGroup([
-              {
-                label: 'Attack',
-                control: '<input id="synth-attack" type="range" min="0" max="2" step="0.01" />',
-                value: '<span id="synth-attack-label"></span>s',
-              },
-              {
-                label: 'Decay',
-                control: '<input id="synth-decay" type="range" min="0" max="2" step="0.01" />',
-                value: '<span id="synth-decay-label"></span>s',
-              },
-              {
-                label: 'Sustain',
-                control: '<input id="synth-sustain" type="range" min="0" max="1" step="0.01" />',
-                value: '<span id="synth-sustain-label"></span>',
-              },
-              {
-                label: 'Release',
-                control: '<input id="synth-release" type="range" min="0" max="3" step="0.01" />',
-                value: '<span id="synth-release-label"></span>s',
-              },
-            ])}
-            <div class="osci-card-header">
-              <span style="font-size:0.72rem;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.1em;">Volume &amp; Filter</span>
-            </div>
-            ${renderKnobGroup([
-              {
-                label: 'Volume',
-                control: '<input id="synth-volume" type="range" min="0" max="1" step="0.01" />',
-                value: '<span id="synth-volume-label"></span>',
-              },
-              {
-                label: 'Cutoff',
-                control: '<input id="synth-cutoff" type="range" min="100" max="12000" step="10" />',
-                value: '<span id="synth-cutoff-label"></span>Hz',
-              },
-              {
-                label: 'Resonance',
-                control: '<input id="synth-resonance" type="range" min="0" max="1" step="0.01" />',
-                value: '<span id="synth-resonance-label"></span>',
-              },
-            ])}
-            <div class="osci-card-header">
-              <span style="font-size:0.72rem;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.1em;">LFO</span>
-            </div>
-            ${renderKnobGroup([
-              {
-                label: 'Waveform',
-                control: `<select id="synth-lfo-waveform">
-                  <option value="sine">Sine</option>
-                  <option value="saw">Saw</option>
-                  <option value="square">Square</option>
-                  <option value="triangle">Triangle</option>
-                </select>`,
-              },
-              {
-                label: 'Rate',
-                control: '<input id="synth-lfo-rate" type="range" min="0.1" max="20" step="0.1" />',
-                value: '<span id="synth-lfo-rate-label"></span>Hz',
-              },
-            ])}
-            <div class="osci-card-header">
-              <span style="font-size:0.72rem;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.1em;">Mod Matrix</span>
-            </div>
-            ${renderModMatrixHtml(synthParams)}
-            <div class="osci-card-header">
-              <span style="font-size:0.72rem;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.1em;">Arpeggiator</span>
-              <button id="synth-arp-toggle">Enable Arpeggiator</button>
-            </div>
-            ${renderKnobGroup([
-              {
-                label: 'Pattern',
-                control: `<select id="synth-arp-pattern">
-                  <option value="up">Up</option>
-                  <option value="down">Down</option>
-                  <option value="up-down">Up/Down</option>
-                  <option value="random">Random</option>
-                </select>`,
-              },
-              {
-                label: 'Rate',
-                control: '<input id="synth-arp-rate" type="range" min="1" max="20" step="0.5" />',
-                value: '<span id="synth-arp-rate-label"></span>/s',
-              },
-            ])}
-            <div class="osci-card-header">
-              <span style="font-size:0.72rem;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.1em;">Smart Chords</span>
-              <button id="synth-smart-chords-toggle">Enable Smart Chords</button>
-            </div>
-            ${renderControlGroup([
-              {
-                label: 'Scale Root',
-                control: `<select id="synth-chords-root">
-                  ${NOTE_NAMES.map((name, i) => `<option value="${i}">${name}</option>`).join('')}
-                </select>`,
-              },
-              {
-                label: 'Scale Type',
-                control: `<select id="synth-chords-scale-type">
-                  <option value="major">Major</option>
-                  <option value="minor">Minor</option>
-                </select>`,
-              },
-            ])}
-            <div class="osci-xy-pad-wrap">
-              <div id="synth-chords-xy-pad" class="osci-xy-pad">
-                <input id="synth-chords-pitch-range" type="range" min="1" max="4" step="1" />
-                <input id="synth-chords-density" type="range" min="2" max="6" step="1" />
+            <div class="osci-synth-grid">
+              <div class="osci-subcard">
+                <p class="osci-subhead">Waveform</p>
+                <label>
+                  <select id="synth-waveform">
+                    <option value="sine">Sine</option>
+                    <option value="saw">Saw</option>
+                    <option value="square">Square</option>
+                    <option value="triangle">Triangle</option>
+                  </select>
+                </label>
               </div>
-              <div class="osci-xy-pad-labels">
-                <span>Range &#8596;</span>
-                <span>Density &#8597;</span>
+              <div class="osci-subcard">
+                <p class="osci-subhead">ADSR</p>
+                ${renderKnobGroup([
+                  {
+                    label: 'Attack',
+                    control: '<input id="synth-attack" type="range" min="0" max="2" step="0.01" />',
+                    value: '<span id="synth-attack-label"></span>s',
+                  },
+                  {
+                    label: 'Decay',
+                    control: '<input id="synth-decay" type="range" min="0" max="2" step="0.01" />',
+                    value: '<span id="synth-decay-label"></span>s',
+                  },
+                  {
+                    label: 'Sustain',
+                    control: '<input id="synth-sustain" type="range" min="0" max="1" step="0.01" />',
+                    value: '<span id="synth-sustain-label"></span>',
+                  },
+                  {
+                    label: 'Release',
+                    control: '<input id="synth-release" type="range" min="0" max="3" step="0.01" />',
+                    value: '<span id="synth-release-label"></span>s',
+                  },
+                ])}
+              </div>
+              <div class="osci-subcard">
+                <p class="osci-subhead">Volume &amp; Filter</p>
+                ${renderKnobGroup([
+                  {
+                    label: 'Volume',
+                    control: '<input id="synth-volume" type="range" min="0" max="1" step="0.01" />',
+                    value: '<span id="synth-volume-label"></span>',
+                  },
+                  {
+                    label: 'Cutoff',
+                    control: '<input id="synth-cutoff" type="range" min="100" max="12000" step="10" />',
+                    value: '<span id="synth-cutoff-label"></span>Hz',
+                  },
+                  {
+                    label: 'Resonance',
+                    control: '<input id="synth-resonance" type="range" min="0" max="1" step="0.01" />',
+                    value: '<span id="synth-resonance-label"></span>',
+                  },
+                ])}
+              </div>
+              <div class="osci-subcard">
+                <p class="osci-subhead">LFO</p>
+                ${renderKnobGroup([
+                  {
+                    label: 'Waveform',
+                    control: `<select id="synth-lfo-waveform">
+                      <option value="sine">Sine</option>
+                      <option value="saw">Saw</option>
+                      <option value="square">Square</option>
+                      <option value="triangle">Triangle</option>
+                    </select>`,
+                  },
+                  {
+                    label: 'Rate',
+                    control: '<input id="synth-lfo-rate" type="range" min="0.1" max="20" step="0.1" />',
+                    value: '<span id="synth-lfo-rate-label"></span>Hz',
+                  },
+                ])}
+              </div>
+              <div class="osci-subcard">
+                <p class="osci-subhead">Mod Matrix</p>
+                ${renderModMatrixHtml(synthParams)}
+              </div>
+              <div class="osci-subcard">
+                <div class="osci-card-header">
+                  <p class="osci-subhead">Arpeggiator</p>
+                  <button id="synth-arp-toggle">Enable</button>
+                </div>
+                ${renderKnobGroup([
+                  {
+                    label: 'Pattern',
+                    control: `<select id="synth-arp-pattern">
+                      <option value="up">Up</option>
+                      <option value="down">Down</option>
+                      <option value="up-down">Up/Down</option>
+                      <option value="random">Random</option>
+                    </select>`,
+                  },
+                  {
+                    label: 'Rate',
+                    control: '<input id="synth-arp-rate" type="range" min="1" max="20" step="0.5" />',
+                    value: '<span id="synth-arp-rate-label"></span>/s',
+                  },
+                ])}
+              </div>
+              <div class="osci-subcard">
+                <div class="osci-card-header">
+                  <p class="osci-subhead">Smart Chords</p>
+                  <button id="synth-smart-chords-toggle">Enable</button>
+                </div>
+                ${renderControlGroup([
+                  {
+                    label: 'Scale Root',
+                    control: `<select id="synth-chords-root">
+                      ${NOTE_NAMES.map((name, i) => `<option value="${i}">${name}</option>`).join('')}
+                    </select>`,
+                  },
+                  {
+                    label: 'Scale Type',
+                    control: `<select id="synth-chords-scale-type">
+                      <option value="major">Major</option>
+                      <option value="minor">Minor</option>
+                    </select>`,
+                  },
+                ])}
+                <div class="osci-xy-pad-wrap">
+                  <div id="synth-chords-xy-pad" class="osci-xy-pad">
+                    <input id="synth-chords-pitch-range" type="range" min="1" max="4" step="1" />
+                    <input id="synth-chords-density" type="range" min="2" max="6" step="1" />
+                  </div>
+                  <div class="osci-xy-pad-labels">
+                    <span>Range &#8596;</span>
+                    <span>Density &#8597;</span>
+                  </div>
+                </div>
+                ${renderKnobGroup([
+                  {
+                    label: 'Strum',
+                    control: '<input id="synth-chords-strum" type="range" min="0" max="80" step="1" />',
+                    value: '<span id="synth-chords-strum-label"></span>ms',
+                  },
+                ])}
+              </div>
+              <div class="osci-subcard osci-subcard--wide">
+                <p class="osci-subhead">Synth Effects</p>
+                ${renderKnobGroup([
+                  {
+                    label: 'Delay Time',
+                    control: '<input id="synth-delay-time" type="range" min="0.01" max="1" step="0.01" />',
+                    value: '<span id="synth-delay-time-label"></span>s',
+                  },
+                  {
+                    label: 'Feedback',
+                    control: '<input id="synth-delay-feedback" type="range" min="0" max="0.9" step="0.01" />',
+                    value: '<span id="synth-delay-feedback-label"></span>',
+                  },
+                  {
+                    label: 'Delay Amt',
+                    control: '<input id="synth-delay-wet" type="range" min="0" max="1" step="0.01" />',
+                    value: '<span id="synth-delay-wet-label"></span>',
+                  },
+                  {
+                    label: 'Reverb Amt',
+                    control: '<input id="synth-reverb-wet" type="range" min="0" max="1" step="0.01" />',
+                    value: '<span id="synth-reverb-wet-label"></span>',
+                  },
+                ])}
               </div>
             </div>
-            ${renderKnobGroup([
-              {
-                label: 'Strum',
-                control: '<input id="synth-chords-strum" type="range" min="0" max="80" step="1" />',
-                value: '<span id="synth-chords-strum-label"></span>ms',
-              },
-            ])}
-            <div class="osci-card-header">
-              <span style="font-size:0.72rem;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.1em;">Synth Effects</span>
-            </div>
-            ${renderKnobGroup([
-              {
-                label: 'Delay Time',
-                control: '<input id="synth-delay-time" type="range" min="0.01" max="1" step="0.01" />',
-                value: '<span id="synth-delay-time-label"></span>s',
-              },
-              {
-                label: 'Feedback',
-                control: '<input id="synth-delay-feedback" type="range" min="0" max="0.9" step="0.01" />',
-                value: '<span id="synth-delay-feedback-label"></span>',
-              },
-              {
-                label: 'Delay Amt',
-                control: '<input id="synth-delay-wet" type="range" min="0" max="1" step="0.01" />',
-                value: '<span id="synth-delay-wet-label"></span>',
-              },
-              {
-                label: 'Reverb Amt',
-                control: '<input id="synth-reverb-wet" type="range" min="0" max="1" step="0.01" />',
-                value: '<span id="synth-reverb-wet-label"></span>',
-              },
-            ])}
           </section>
         </div>
 
@@ -919,7 +922,10 @@ export function createApp(root: HTMLElement): void {
               </select>
             </label>
 
-            <button id="toggle" class="osci-toggle">Start</button>
+            <div class="osci-button-row">
+              <button id="toggle-start" class="osci-transport-start">Start</button>
+              <button id="toggle-stop" class="osci-transport-stop" disabled>Stop</button>
+            </div>
           </div>
 
           <p class="osci-warning">
@@ -965,7 +971,8 @@ export function createApp(root: HTMLElement): void {
   const midiMapToggle = root.querySelector<HTMLButtonElement>('#midi-map-toggle')!;
   const midiStatus = root.querySelector<HTMLParagraphElement>('#midi-status')!;
   const keyboardEl = root.querySelector<HTMLDivElement>('.osci-keyboard')!;
-  const toggleButton = root.querySelector<HTMLButtonElement>('#toggle')!;
+  const toggleStartButton = root.querySelector<HTMLButtonElement>('#toggle-start')!;
+  const toggleStopButton = root.querySelector<HTMLButtonElement>('#toggle-stop')!;
   const synthToggle = root.querySelector<HTMLButtonElement>('#synth-toggle')!;
   const synthKeyboardToggle = root.querySelector<HTMLButtonElement>('#synth-keyboard-toggle')!;
   const synthStatus = root.querySelector<HTMLParagraphElement>('#synth-status')!;
@@ -1036,7 +1043,8 @@ export function createApp(root: HTMLElement): void {
   synthArpPatternSelect.value = synthParams.arp.pattern;
   synthArpRateInput.value = String(synthParams.arp.rate);
   synthArpRateLabel.textContent = synthParams.arp.rate.toFixed(1);
-  synthSmartChordsToggle.textContent = synthParams.smartChordsEnabled ? 'Disable Smart Chords' : 'Enable Smart Chords';
+  synthSmartChordsToggle.textContent = synthParams.smartChordsEnabled ? 'Disable' : 'Enable';
+  synthSmartChordsToggle.classList.toggle('osci-toggle-active', synthParams.smartChordsEnabled);
   synthChordsRootSelect.value = String(synthParams.smartChords.scaleRoot);
   synthChordsScaleTypeSelect.value = synthParams.smartChords.scaleType;
   synthChordsPitchRangeInput.value = String(synthParams.smartChords.pitchRange);
@@ -1508,7 +1516,7 @@ export function createApp(root: HTMLElement): void {
     }
 
     return `
-      <div class="osci-card">
+      <div class="osci-card" data-effect-kind="${effect.kind}">
         <div class="osci-card-header">
           <strong>${effect.kind}</strong>
           <div class="osci-card-actions">
@@ -2055,23 +2063,32 @@ export function createApp(root: HTMLElement): void {
     requestedSampleRate = Number(sampleRateSelect.value);
   });
 
-  toggleButton.addEventListener('click', async () => {
-    if (state === 'stopped') {
-      audio = await createAudioGraph({ sampleRate: requestedSampleRate });
-      state = 'playing';
-      toggleButton.textContent = 'Stop';
-      shapePreviewRunning = true;
-      if (previewMode === 'shapes') preview.start();
-      renderAndUpdate();
-    } else {
-      audio?.node.disconnect();
-      await audio?.context.close();
-      audio = null;
-      state = 'stopped';
-      toggleButton.textContent = 'Start';
-      shapePreviewRunning = false;
-      if (previewMode === 'shapes') preview.stop();
-    }
+  const setTransportState = (playing: boolean): void => {
+    toggleStartButton.classList.toggle('osci-toggle-active', playing);
+    toggleStartButton.disabled = playing;
+    toggleStopButton.disabled = !playing;
+  };
+  setTransportState(false);
+
+  toggleStartButton.addEventListener('click', async () => {
+    if (state !== 'stopped') return;
+    audio = await createAudioGraph({ sampleRate: requestedSampleRate });
+    state = 'playing';
+    setTransportState(true);
+    shapePreviewRunning = true;
+    if (previewMode === 'shapes') preview.start();
+    renderAndUpdate();
+  });
+
+  toggleStopButton.addEventListener('click', async () => {
+    if (state !== 'playing') return;
+    audio?.node.disconnect();
+    await audio?.context.close();
+    audio = null;
+    state = 'stopped';
+    setTransportState(false);
+    shapePreviewRunning = false;
+    if (previewMode === 'shapes') preview.stop();
   });
 
   synthToggle.addEventListener('click', async () => {
@@ -2086,6 +2103,7 @@ export function createApp(root: HTMLElement): void {
         synthWaveformPreview.setAnalyser(synthGraph.analyser);
         synthWaveformPreview.start();
         synthToggle.textContent = 'Disable Synth';
+        synthToggle.classList.add('osci-toggle-active');
         synthStatus.style.display = 'none';
       } catch (err) {
         console.error('Could not start the synth', err);
@@ -2102,6 +2120,7 @@ export function createApp(root: HTMLElement): void {
       previewModeLabel.textContent = 'Shape / Audio Trace';
       if (shapePreviewRunning) preview.start();
       synthToggle.textContent = 'Enable Synth';
+      synthToggle.classList.remove('osci-toggle-active');
     }
   });
 
@@ -2167,7 +2186,8 @@ export function createApp(root: HTMLElement): void {
 
   synthArpToggle.addEventListener('click', () => {
     synthParams.arpEnabled = !synthParams.arpEnabled;
-    synthArpToggle.textContent = synthParams.arpEnabled ? 'Disable Arpeggiator' : 'Enable Arpeggiator';
+    synthArpToggle.textContent = synthParams.arpEnabled ? 'Disable' : 'Enable';
+    synthArpToggle.classList.toggle('osci-toggle-active', synthParams.arpEnabled);
     if (synthGraph) sendSynthParams(synthGraph.node, synthParams);
   });
   synthArpPatternSelect.addEventListener('change', () => {
@@ -2182,7 +2202,8 @@ export function createApp(root: HTMLElement): void {
 
   synthSmartChordsToggle.addEventListener('click', () => {
     synthParams.smartChordsEnabled = !synthParams.smartChordsEnabled;
-    synthSmartChordsToggle.textContent = synthParams.smartChordsEnabled ? 'Disable Smart Chords' : 'Enable Smart Chords';
+    synthSmartChordsToggle.textContent = synthParams.smartChordsEnabled ? 'Disable' : 'Enable';
+    synthSmartChordsToggle.classList.toggle('osci-toggle-active', synthParams.smartChordsEnabled);
     if (synthGraph) sendSynthParams(synthGraph.node, synthParams);
   });
   synthChordsRootSelect.addEventListener('change', () => {
@@ -2238,6 +2259,7 @@ export function createApp(root: HTMLElement): void {
     }
     midiMapModeActive = !midiMapModeActive;
     midiMapToggle.textContent = midiMapModeActive ? 'Click a slider to map...' : 'Enable MIDI mapping';
+    midiMapToggle.classList.toggle('osci-toggle-active', midiMapModeActive);
     midiStatus.textContent = midiMapModeActive
       ? 'Map mode on — click Trace frequency or Output level, then move a MIDI knob.'
       : 'Maps Trace frequency and Output level to a MIDI knob. Click the button, then move a knob for each slider you want to map.';
@@ -2367,6 +2389,7 @@ export function createApp(root: HTMLElement): void {
   synthKeyboardToggle.addEventListener('click', () => {
     computerKeyboardEnabled = !computerKeyboardEnabled;
     synthKeyboardToggle.textContent = computerKeyboardEnabled ? 'Disable Computer Keyboard' : 'Enable Computer Keyboard';
+    synthKeyboardToggle.classList.toggle('osci-toggle-active', computerKeyboardEnabled);
     if (!computerKeyboardEnabled) {
       for (const code of heldComputerKeys) triggerNote(COMPUTER_KEYBOARD_NOTE_MAP[code], 0, false);
       heldComputerKeys.clear();
