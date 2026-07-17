@@ -2,6 +2,12 @@
   "name": "oscillo-synth",
   "private": true,
   "type": "module",
+  "description": "A browser-based oscilloscope art and synth instrument.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/smileybones/oscillo-synth.git"
+  },
   "scripts": {
     "dev": "pnpm --filter @oscillo-synth/web dev",
     "build": "pnpm --filter @oscillo-synth/web build",
