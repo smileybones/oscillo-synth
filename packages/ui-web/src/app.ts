@@ -356,9 +356,17 @@ function genId(): string {
 // correct regardless of layout/modifier state.
 //
 // Values are semitone offsets from KeyZ, not absolute MIDI notes — the
-// Computer Keyboard's "Root Note" setting (computerKeyboardRootNote below)
-// picks what KeyZ itself maps to, so the whole layout can be transposed to
-// reach any note instead of always starting at a fixed C4.
+// Computer Keyboard's "Keyboard Octave" setting (computerKeyboardRootNote
+// below) picks what KeyZ itself maps to, so the whole layout can be shifted
+// to reach other octaves. Deliberately constrained to whole octaves (always
+// some C) rather than any of the 34 semitones this table spans: shifting by
+// exactly 12 semitones preserves every key's true white/black pitch class,
+// so the ZXCV/QWERTY-as-white, ASDF/numbers-as-black row layout stays
+// correct at any octave. A non-octave shift breaks that correspondence —
+// e.g. root=C#4 would make KeyZ (a "white row" key) play a black-key note,
+// scrambling the on-screen keyboard's white/black highlighting relative to
+// which PC row was actually pressed. Confirmed as a real bug via user
+// report before this constraint was added.
 const COMPUTER_KEYBOARD_NOTE_OFFSETS: Record<string, number> = {
   KeyZ: 0,
   KeyS: 1,
@@ -664,9 +672,9 @@ export function createApp(root: HTMLElement): void {
   let computerKeyboardEnabled = false;
   let computerKeyboardRootNote = COMPUTER_KEYBOARD_DEFAULT_ROOT_NOTE;
   // Maps each held physical key to the note it actually triggered, not just
-  // whether it's held — if the Root Note changes while a key is still down,
-  // release must still turn off the note that was originally triggered, not
-  // whatever the new root would map that key to now.
+  // whether it's held — if the Keyboard Octave changes while a key is still
+  // down, release must still turn off the note that was originally
+  // triggered, not whatever the new root would map that key to now.
   const heldComputerKeys = new Map<string, number>();
 
   // Tracks which generated chord tones (and any still-pending strum
@@ -767,10 +775,10 @@ export function createApp(root: HTMLElement): void {
                 </label>
               </div>
               <div class="osci-subcard">
-                <p class="osci-subhead">Keyboard Root Note</p>
+                <p class="osci-subhead">Keyboard Octave</p>
                 <label>
                   <select id="synth-keyboard-root">
-                    ${Array.from({ length: 61 }, (_, i) => 24 + i)
+                    ${Array.from({ length: 6 }, (_, i) => 24 + i * 12)
                       .map((note) => `<option value="${note}">${midiNoteName(note)}</option>`)
                       .join('')}
                   </select>
@@ -2390,8 +2398,8 @@ export function createApp(root: HTMLElement): void {
     input.dispatchEvent(new Event('input', { bubbles: true }));
   });
 
-  // Applies the Computer Keyboard's Root Note transpose to a physical key's
-  // fixed offset — undefined if the key isn't mapped to a note at all.
+  // Applies the Computer Keyboard's Keyboard Octave transpose to a physical
+  // key's fixed offset — undefined if the key isn't mapped to a note at all.
   function computerKeyboardNote(code: string): number | undefined {
     const offset = COMPUTER_KEYBOARD_NOTE_OFFSETS[code];
     return offset === undefined ? undefined : offset + computerKeyboardRootNote;
