@@ -23,17 +23,25 @@ mac:
 dmg:
   artifactName: 'oscillo-synth-${version}.${ext}'
   background: build/background.png
-  # background.png is 1448x1086 (exactly 4:3) — window kept at that same 4:3
-  # ratio (600x450, a more standard install-window size than the previous
-  # 724x543) so the art scales down cleanly instead of stretching. Icon
-  # positions eyeballed from the artwork's own drag-arrow (which points
-  # roughly left-to-right through the center, above the "Drag to Install"
-  # caption panel) and converted from the image's pixel space into the
-  # window's point space (scale factor 600/1448 ≈ 0.414) — still a visual
-  # estimate, not pixel-measured, so confirm against the real artwork.
-  window:
-    width: 600
-    height: 450
+  # dmg.window.width/height are silently ignored whenever a background image
+  # is set — electron-builder uses the background image's own pixel
+  # dimensions as the window size directly (1:1, not @2x), full stop.
+  # Confirmed by inspecting the actual .DS_Store embedded in a built DMG
+  # (its WindowBounds matched the source background's raw pixel size even
+  # with window.width/height explicitly set to something else).
+  #
+  # The only way to control the DMG window size is to resize the background
+  # image file itself. background-source.png is the original 1448x1086
+  # artwork (kept for re-editing); background.png is that same art resized
+  # to 600x450 via `sips -z 450 600 background-source.png -o background.png`
+  # — that resized copy, not the source, is what's actually referenced
+  # above. To change the window size again, resize from background-source
+  # .png, don't repeatedly downscale background.png itself.
+  #
+  # Icon positions below are in that same 600x450 pixel/point space,
+  # eyeballed from the artwork's drag-arrow (left-to-right, above the
+  # "Drag to Install" caption) — still a visual estimate, confirm against
+  # the real artwork.
   contents:
     - x: 190
       y: 230
