@@ -1,3 +1,8 @@
+# ${name} in artifactName templates below resolves to the raw npm package.json
+# "name" field, not productName — since ours is scoped (@oscillo-synth/desktop),
+# that produces a literal "/" in the output filename and breaks the build
+# (electron-builder tries to write into a dist/@oscillo-synth/ dir that's never
+# created). Use a plain literal slug in every artifactName instead of ${name}.
 appId: com.oscillosynth.app
 productName: Oscillo Synth
 directories:
@@ -15,11 +20,11 @@ mac:
   category: public.app-category.music
   notarize: false
 dmg:
-  artifactName: '${name}-${version}.${ext}'
+  artifactName: 'oscillo-synth-${version}.${ext}'
 win:
   executableName: oscillo-synth
 nsis:
-  artifactName: '${name}-${version}-setup.${ext}'
+  artifactName: 'oscillo-synth-${version}-setup.${ext}'
   shortcutName: '${productName}'
   uninstallDisplayName: '${productName}'
   createDesktopShortcut: always
@@ -29,4 +34,4 @@ linux:
     - deb
   category: AudioVideo
 appImage:
-  artifactName: '${name}-${version}.${ext}'
+  artifactName: 'oscillo-synth-${version}.${ext}'
