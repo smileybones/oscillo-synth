@@ -1,0 +1,19 @@
+name: Feature request
+description: Suggest an idea for oscillo-synth
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What's the idea?
+      description: What would this let you do that you can't do now?
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Anything you've already tried?
+      description: A workaround, a similar existing feature, etc. — helps figure out if this fits an existing pattern.
+    validations:
+      required: false

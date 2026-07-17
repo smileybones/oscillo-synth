@@ -1,0 +1,46 @@
+name: Bug report
+description: Something isn't working right
+labels: [bug]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, what happened instead?
+    validations:
+      required: true
+
+  - type: dropdown
+    id: build
+    attributes:
+      label: Which build?
+      options:
+        - Browser (apps/web)
+        - Desktop app (apps/desktop / Electron)
+    validations:
+      required: true
+
+  - type: input
+    id: platform
+    attributes:
+      label: OS / browser
+      description: e.g. "macOS 15, Chrome 128" or "Windows 11, desktop app"
+    validations:
+      required: true
+
+  - type: textarea
+    id: console
+    attributes:
+      label: Console errors
+      description: Any errors in the browser/Electron DevTools console (Cmd/Ctrl+Shift+I)?
+      render: text
+    validations:
+      required: false
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else?
+      description: MIDI device involved, specific shape/effect/Lua script combo, etc.
+    validations:
+      required: false

@@ -71,6 +71,10 @@ A pnpm workspace monorepo:
 - ~~**Native desktop app**~~ — done, see `apps/desktop` above. Unsigned for now (no Apple Developer ID / Windows code-signing cert yet), so expect a Gatekeeper/SmartScreen warning on first launch.
 - **VST3/AU plugin packaging** — running the synth (and shape-tracing engine) as a plugin inside a DAW.
 
+## Contributing
+
+Bug reports, fixes, and small feature contributions are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md). Please also read the [Code of Conduct](CODE_OF_CONDUCT.md). For security issues, see [SECURITY.md](SECURITY.md) rather than opening a public issue.
+
 ## License
 
 [MIT](LICENSE)
