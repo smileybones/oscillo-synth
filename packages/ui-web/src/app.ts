@@ -347,50 +347,56 @@ function genId(): string {
 }
 
 // Standard "typing piano" layout (same convention as Ableton/GarageBand's
-// computer-keyboard input): the ZXCV row plays white notes C4-E5, with the
-// ASDF row above filling in the black keys — then the same pattern repeats
-// an octave-and-a-half higher, QWERTY row for whites (F5-A6) and the number
-// row above it for blacks, so the two row-pairs stack the same way the keys
+// computer-keyboard input): the ZXCV row plays white notes, with the ASDF
+// row above filling in the black keys — then the same pattern repeats an
+// octave-and-a-half higher, QWERTY row for whites and the number row above
+// it for blacks, so the two row-pairs stack the same way the keys
 // themselves physically stack (higher row = higher pitch). Keyed by
 // KeyboardEvent.code (physical position) rather than .key, so it stays
 // correct regardless of layout/modifier state.
-const COMPUTER_KEYBOARD_NOTE_MAP: Record<string, number> = {
-  KeyZ: 60,
-  KeyS: 61,
-  KeyX: 62,
-  KeyD: 63,
-  KeyC: 64,
-  KeyV: 65,
-  KeyG: 66,
-  KeyB: 67,
-  KeyH: 68,
-  KeyN: 69,
-  KeyJ: 70,
-  KeyM: 71,
-  Comma: 72,
-  KeyL: 73,
-  Period: 74,
-  Semicolon: 75,
-  Slash: 76,
-  KeyQ: 77,
-  Digit2: 78,
-  KeyW: 79,
-  Digit3: 80,
-  KeyE: 81,
-  Digit4: 82,
-  KeyR: 83,
-  KeyT: 84,
-  Digit6: 85,
-  KeyY: 86,
-  Digit7: 87,
-  KeyU: 88,
-  KeyI: 89,
-  Digit9: 90,
-  KeyO: 91,
-  Digit0: 92,
-  KeyP: 93,
+//
+// Values are semitone offsets from KeyZ, not absolute MIDI notes — the
+// Computer Keyboard's "Root Note" setting (computerKeyboardRootNote below)
+// picks what KeyZ itself maps to, so the whole layout can be transposed to
+// reach any note instead of always starting at a fixed C4.
+const COMPUTER_KEYBOARD_NOTE_OFFSETS: Record<string, number> = {
+  KeyZ: 0,
+  KeyS: 1,
+  KeyX: 2,
+  KeyD: 3,
+  KeyC: 4,
+  KeyV: 5,
+  KeyG: 6,
+  KeyB: 7,
+  KeyH: 8,
+  KeyN: 9,
+  KeyJ: 10,
+  KeyM: 11,
+  Comma: 12,
+  KeyL: 13,
+  Period: 14,
+  Semicolon: 15,
+  Slash: 16,
+  KeyQ: 17,
+  Digit2: 18,
+  KeyW: 19,
+  Digit3: 20,
+  KeyE: 21,
+  Digit4: 22,
+  KeyR: 23,
+  KeyT: 24,
+  Digit6: 25,
+  KeyY: 26,
+  Digit7: 27,
+  KeyU: 28,
+  KeyI: 29,
+  Digit9: 30,
+  KeyO: 31,
+  Digit0: 32,
+  KeyP: 33,
 };
 const COMPUTER_KEYBOARD_VELOCITY = 100;
+const COMPUTER_KEYBOARD_DEFAULT_ROOT_NOTE = 60; // C4 — matches the old hardcoded KeyZ mapping.
 
 // Bundled Apache-2.0-licensed fallback so "+ Add text" works immediately
 // without requiring the user to hunt down a font file first (see
@@ -422,9 +428,12 @@ function midiNoteName(note: number): string {
   return `${NOTE_NAMES[note % 12]}${octave}`;
 }
 
-// C2 through A6 — matches the computer-keyboard fallback's top end (A6, see
-// COMPUTER_KEYBOARD_NOTE_MAP) so every key it can trigger has a visible key
-// here too; extra headroom below C4 for MIDI-only lower notes.
+// C2 through A6 — matches the computer-keyboard fallback's top end at its
+// default root note (A6, see COMPUTER_KEYBOARD_NOTE_OFFSETS) so every key it
+// can trigger has a visible key here too; extra headroom below C4 for
+// MIDI-only lower notes. A transposed root can push triggered notes outside
+// this range — same as any out-of-range MIDI note, they still play, they
+// just won't have a key to highlight.
 const KEYBOARD_START_NOTE = 36;
 const KEYBOARD_END_NOTE = 93;
 const BLACK_KEY_SEMITONES = new Set([1, 3, 6, 8, 10]);
@@ -653,7 +662,12 @@ export function createApp(root: HTMLElement): void {
   const midiBindings = new Map<string, HTMLInputElement>();
 
   let computerKeyboardEnabled = false;
-  const heldComputerKeys = new Set<string>();
+  let computerKeyboardRootNote = COMPUTER_KEYBOARD_DEFAULT_ROOT_NOTE;
+  // Maps each held physical key to the note it actually triggered, not just
+  // whether it's held — if the Root Note changes while a key is still down,
+  // release must still turn off the note that was originally triggered, not
+  // whatever the new root would map that key to now.
+  const heldComputerKeys = new Map<string, number>();
 
   // Tracks which generated chord tones (and any still-pending strum
   // setTimeouts) a physical note-on produced, keyed by that physical note,
@@ -749,6 +763,16 @@ export function createApp(root: HTMLElement): void {
                     <option value="saw">Saw</option>
                     <option value="square">Square</option>
                     <option value="triangle">Triangle</option>
+                  </select>
+                </label>
+              </div>
+              <div class="osci-subcard">
+                <p class="osci-subhead">Keyboard Root Note</p>
+                <label>
+                  <select id="synth-keyboard-root">
+                    ${Array.from({ length: 61 }, (_, i) => 24 + i)
+                      .map((note) => `<option value="${note}">${midiNoteName(note)}</option>`)
+                      .join('')}
                   </select>
                 </label>
               </div>
@@ -1000,6 +1024,7 @@ export function createApp(root: HTMLElement): void {
   const toggleStopButton = root.querySelector<HTMLButtonElement>('#toggle-stop')!;
   const synthToggle = root.querySelector<HTMLButtonElement>('#synth-toggle')!;
   const synthKeyboardToggle = root.querySelector<HTMLButtonElement>('#synth-keyboard-toggle')!;
+  const synthKeyboardRootSelect = root.querySelector<HTMLSelectElement>('#synth-keyboard-root')!;
   const synthStatus = root.querySelector<HTMLParagraphElement>('#synth-status')!;
   const synthWaveformSelect = root.querySelector<HTMLSelectElement>('#synth-waveform')!;
   const synthAttackInput = root.querySelector<HTMLInputElement>('#synth-attack')!;
@@ -1048,6 +1073,7 @@ export function createApp(root: HTMLElement): void {
   sampleRateSelect.value = String(requestedSampleRate);
 
   synthWaveformSelect.value = synthParams.oscillator.waveform;
+  synthKeyboardRootSelect.value = String(computerKeyboardRootNote);
   synthAttackInput.value = String(synthParams.envelope.attack);
   synthAttackLabel.textContent = synthParams.envelope.attack.toFixed(2);
   synthDecayInput.value = String(synthParams.envelope.decay);
@@ -2360,6 +2386,13 @@ export function createApp(root: HTMLElement): void {
     input.dispatchEvent(new Event('input', { bubbles: true }));
   });
 
+  // Applies the Computer Keyboard's Root Note transpose to a physical key's
+  // fixed offset — undefined if the key isn't mapped to a note at all.
+  function computerKeyboardNote(code: string): number | undefined {
+    const offset = COMPUTER_KEYBOARD_NOTE_OFFSETS[code];
+    return offset === undefined ? undefined : offset + computerKeyboardRootNote;
+  }
+
   // Shared by both real MIDI input and the computer-keyboard fallback below,
   // so the note visualizer and the synth both react to any note source.
   // When Smart Chords is enabled, one physical note expands into several —
@@ -2422,9 +2455,13 @@ export function createApp(root: HTMLElement): void {
     synthKeyboardToggle.textContent = computerKeyboardEnabled ? 'Disable Computer Keyboard' : 'Enable Computer Keyboard';
     synthKeyboardToggle.classList.toggle('osci-toggle-active', computerKeyboardEnabled);
     if (!computerKeyboardEnabled) {
-      for (const code of heldComputerKeys) triggerNote(COMPUTER_KEYBOARD_NOTE_MAP[code], 0, false);
+      for (const note of heldComputerKeys.values()) triggerNote(note, 0, false);
       heldComputerKeys.clear();
     }
+  });
+
+  synthKeyboardRootSelect.addEventListener('change', () => {
+    computerKeyboardRootNote = Number(synthKeyboardRootSelect.value);
   });
 
   window.addEventListener('keydown', (event) => {
@@ -2442,24 +2479,25 @@ export function createApp(root: HTMLElement): void {
     const isTextEntry =
       target instanceof HTMLTextAreaElement || (target instanceof HTMLInputElement && target.type === 'text');
     if (isTextEntry) return;
-    const note = COMPUTER_KEYBOARD_NOTE_MAP[event.code];
+    const note = computerKeyboardNote(event.code);
     if (note === undefined || heldComputerKeys.has(event.code)) return;
     event.preventDefault();
-    heldComputerKeys.add(event.code);
+    heldComputerKeys.set(event.code, note);
     triggerNote(note, COMPUTER_KEYBOARD_VELOCITY, true);
   });
 
   window.addEventListener('keyup', (event) => {
-    if (!heldComputerKeys.has(event.code)) return;
+    const note = heldComputerKeys.get(event.code);
+    if (note === undefined) return;
     heldComputerKeys.delete(event.code);
-    triggerNote(COMPUTER_KEYBOARD_NOTE_MAP[event.code], 0, false);
+    triggerNote(note, 0, false);
   });
 
   // Releasing the physical key never fires if focus (and the keyup event
   // with it) leaves the browser entirely — e.g. alt-tabbing away mid-note —
   // which would otherwise leave that voice stuck sounding indefinitely.
   window.addEventListener('blur', () => {
-    for (const code of heldComputerKeys) triggerNote(COMPUTER_KEYBOARD_NOTE_MAP[code], 0, false);
+    for (const note of heldComputerKeys.values()) triggerNote(note, 0, false);
     heldComputerKeys.clear();
   });
 
