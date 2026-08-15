@@ -1,16 +1,25 @@
 :root {
-  --bg: #05080a;
-  --panel-bg: #0a1310;
-  --panel-bg-raised: #0d1815;
-  --field-bg: #050b09;
-  --accent: #7cfc9c;
-  --accent-dim: #2f4a3a;
-  --accent-glow: rgba(124, 252, 156, 0.45);
-  --text: #c8d6cd;
-  --text-dim: #5c6e64;
-  --text-bright: #eafff0;
+  --bg: #0c0e16;
+  --panel-bg: #12141f;
+  --panel-bg-raised: #171a28;
+  --field-bg: #0a0b12;
+  --accent: #8b7cf9;
+  --accent-dim: #322f52;
+  --accent-glow: rgba(139, 124, 249, 0.45);
+  /* Ink color for text/icons sitting on a filled --accent background (toggle-active
+     buttons, transport Start) — needs its own token since it's not just --bg, it's
+     tuned per-accent-hue for contrast (see .osci-toggle-active). */
+  --accent-ink: #0c0a1e;
+  --text: #c6c8db;
+  --text-dim: #5f6280;
+  --text-bright: #f1f0ff;
   --warn: #f8b84e;
-  --danger: #e2694f;
+  --danger: #ef6e8b;
+  /* True black/white piano keys (see .osci-key-white/.osci-key-black) — kept as
+     their own tokens rather than hardcoded, since they intentionally don't follow
+     --panel-bg/--field-bg the way every other surface does. */
+  --key-white: #eceaf7;
+  --key-black: #0f0f18;
   --font-mono: ui-monospace, 'SF Mono', 'JetBrains Mono', 'Fira Code', Menlo, Consolas, monospace;
 }
 
@@ -534,13 +543,28 @@ button:disabled {
 .osci-toggle-active {
   background: var(--accent);
   border-color: var(--accent);
-  color: #04140a;
+  color: var(--accent-ink);
   font-weight: 600;
 }
 
 .osci-toggle-active:hover:not(:disabled) {
   border-color: var(--accent);
-  color: #04140a;
+  color: var(--accent-ink);
+}
+
+/* Recording state gets its own red, not --accent — "record" reads as a
+   universal red regardless of whatever the instrument's own accent hue is,
+   the same way a hardware looper pedal's record LED is always red. */
+.osci-record-active {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+
+.osci-record-active:hover:not(:disabled) {
+  border-color: var(--danger);
+  color: var(--accent-ink);
 }
 
 /* Start/Stop transport — two distinct buttons (not one toggling label), the
@@ -557,7 +581,7 @@ button:disabled {
 
 .osci-transport-start.osci-toggle-active {
   background: var(--accent);
-  color: #04140a;
+  color: var(--accent-ink);
 }
 
 .osci-transport-stop {
@@ -726,8 +750,8 @@ input[type='range']::-moz-range-thumb {
   max-width: 140px;
   height: 70px;
   background:
-    repeating-linear-gradient(0deg, rgba(124, 252, 156, 0.07) 0, rgba(124, 252, 156, 0.07) 1px, transparent 1px, transparent 25%),
-    repeating-linear-gradient(90deg, rgba(124, 252, 156, 0.07) 0, rgba(124, 252, 156, 0.07) 1px, transparent 1px, transparent 25%),
+    repeating-linear-gradient(0deg, rgba(139, 124, 249, 0.09) 0, rgba(139, 124, 249, 0.09) 1px, transparent 1px, transparent 25%),
+    repeating-linear-gradient(90deg, rgba(139, 124, 249, 0.09) 0, rgba(139, 124, 249, 0.09) 1px, transparent 1px, transparent 25%),
     var(--field-bg);
   border: 1px solid var(--accent-dim);
   border-radius: 2px;
@@ -773,9 +797,6 @@ input[type='range']::-moz-range-thumb {
 }
 
 .osci-keyboard {
-  display: flex;
-  align-items: flex-start;
-  gap: 1px;
   height: 64px;
   background: var(--field-bg);
   border: 1px solid var(--accent-dim);
@@ -783,8 +804,20 @@ input[type='range']::-moz-range-thumb {
   padding: 4px;
 }
 
+/* No gap here: black key left/width (set inline per-key in
+   renderKeyboardHtml) is computed as a percentage assuming white keys are
+   exactly equal-width with nothing eating into that width — a flex `gap`
+   would shift every boundary a little further off with each key, compounding
+   into a visibly wrong offset by the far end of the keyboard. The 1px
+   borders on each key already draw the seam between neighbors instead. */
+.osci-keyboard-keys {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  height: 100%;
+}
+
 .osci-key {
-  flex: 1;
   border-radius: 1px;
   transition:
     background 0.05s ease,
@@ -792,16 +825,23 @@ input[type='range']::-moz-range-thumb {
 }
 
 .osci-key-white {
+  flex: 1;
   height: 100%;
-  background: #131c17;
+  background: var(--key-white);
   border: 1px solid var(--accent-dim);
 }
 
+/* Positioned out of the flex flow entirely — left/width come from the
+   inline style renderKeyboardHtml sets per key, straddling the boundary
+   between the two white keys it sits between, the way a real piano's
+   black keys overlap the seam rather than occupying their own row slot. */
 .osci-key-black {
-  flex: 0.7;
+  position: absolute;
+  top: 0;
   height: 60%;
-  background: #05100a;
+  background: var(--key-black);
   border: 1px solid var(--accent-dim);
+  z-index: 1;
 }
 
 .osci-key-active {

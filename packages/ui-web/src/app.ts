@@ -436,6 +436,14 @@ function midiNoteName(note: number): string {
   return `${NOTE_NAMES[note % 12]}${octave}`;
 }
 
+// Shared by every window-level keydown shortcut (computer-keyboard notes,
+// the Enter looper toggle) — genuine free-text fields (Lua/SVG/L-system
+// textareas, single-line text inputs) need protecting from having
+// keystrokes hijacked, everything else on the page doesn't.
+function isTextEntryTarget(target: EventTarget | null): boolean {
+  return target instanceof HTMLTextAreaElement || (target instanceof HTMLInputElement && target.type === 'text');
+}
+
 // C2 through A6 — matches the computer-keyboard fallback's top end at its
 // default root note (A6, see COMPUTER_KEYBOARD_NOTE_OFFSETS) so every key it
 // can trigger has a visible key here too; extra headroom below C4 for
@@ -446,18 +454,43 @@ const KEYBOARD_START_NOTE = 36;
 const KEYBOARD_END_NOTE = 93;
 const BLACK_KEY_SEMITONES = new Set([1, 3, 6, 8, 10]);
 
-// Flat left-to-right strip rather than true overlapping piano geometry —
-// black keys are just shorter/darker and flush to the top, which reads as a
-// keyboard without needing absolute-position overlap math.
+// Real piano geometry: white keys lay out edge-to-edge via flex (equal
+// width, no gap) and define the row's total width. Black keys are excluded
+// from that flex flow and absolutely positioned straddling the boundary
+// between the two white keys on either side of them, at 62% of a white
+// key's width — matching real piano proportions instead of just being a
+// narrower/shorter item inline in the same row.
+const BLACK_KEY_WIDTH_RATIO = 0.62;
+
 function renderKeyboardHtml(): string {
-  const keys: string[] = [];
+  const whiteNotes: number[] = [];
+  const blackNotes: { note: number; boundaryIndex: number }[] = [];
   for (let note = KEYBOARD_START_NOTE; note <= KEYBOARD_END_NOTE; note++) {
-    const isBlack = BLACK_KEY_SEMITONES.has(note % 12);
-    keys.push(
-      `<div class="osci-key ${isBlack ? 'osci-key-black' : 'osci-key-white'}" data-note="${note}" title="${midiNoteName(note)}"></div>`,
-    );
+    if (BLACK_KEY_SEMITONES.has(note % 12)) {
+      // boundaryIndex = how many white keys precede this black key — the
+      // black key sits centered on the seam right after that many white
+      // keys, i.e. at boundaryIndex * whiteKeyWidthPercent.
+      blackNotes.push({ note, boundaryIndex: whiteNotes.length });
+    } else {
+      whiteNotes.push(note);
+    }
   }
-  return `<div class="osci-keyboard">${keys.join('')}</div>`;
+
+  const whiteKeyWidthPercent = 100 / whiteNotes.length;
+  const blackKeyWidthPercent = whiteKeyWidthPercent * BLACK_KEY_WIDTH_RATIO;
+
+  const whiteHtml = whiteNotes
+    .map((note) => `<div class="osci-key osci-key-white" data-note="${note}" title="${midiNoteName(note)}"></div>`)
+    .join('');
+
+  const blackHtml = blackNotes
+    .map(({ note, boundaryIndex }) => {
+      const left = boundaryIndex * whiteKeyWidthPercent - blackKeyWidthPercent / 2;
+      return `<div class="osci-key osci-key-black" data-note="${note}" title="${midiNoteName(note)}" style="left:${left}%;width:${blackKeyWidthPercent}%"></div>`;
+    })
+    .join('');
+
+  return `<div class="osci-keyboard"><div class="osci-keyboard-keys">${whiteHtml}${blackHtml}</div></div>`;
 }
 
 interface KnobGroupItem {
@@ -683,6 +716,40 @@ export function createApp(root: HTMLElement): void {
   // Smart Chords' current settings would generate right now, which may
   // have changed while the note was held.
   const activeChordNotes = new Map<number, { notes: number[]; pendingTimeouts: ReturnType<typeof setTimeout>[] }>();
+
+  // The looper records note on/off *events* (with a timestamp relative to
+  // when Record was pressed), not audio — playback replays them through the
+  // exact same triggerNote() path a live key press uses, so every synth
+  // parameter (waveform, envelope, filter, effects, even Smart Chords/Arp)
+  // is read fresh at each replayed note-on and can be changed freely while
+  // the loop runs, same as during live playing.
+  interface LoopEvent {
+    time: number;
+    note: number;
+    velocity: number;
+    on: boolean;
+  }
+  type LooperState = 'idle' | 'recording' | 'playing';
+  const MIN_LOOP_LENGTH_MS = 150;
+  let looperState: LooperState = 'idle';
+  let loopEvents: LoopEvent[] = [];
+  let loopLengthMs = 0;
+  let loopRecordStartTime = 0;
+  // Playback-rate multiplier, read fresh at the start of each lap (see
+  // scheduleLoopCycle) rather than applied by restarting the loop the
+  // instant it changes — so dragging the knob mid-lap doesn't retrigger or
+  // glitch the notes currently playing, it just takes effect next lap.
+  let loopSpeed = 1;
+  // Notes recorded as "on" with no matching "off" yet — closed out with a
+  // synthetic off at the loop's end when recording stops, so a note still
+  // held when you hit Stop doesn't hang open across the loop boundary.
+  const recordingOpenNotes = new Set<number>();
+  // Notes currently sounding from loop playback — released on stop/clear so
+  // stopping mid-note never leaves a voice stuck on.
+  const activeLoopNotes = new Set<number>();
+  let loopScheduledTimeouts: ReturnType<typeof setTimeout>[] = [];
+  let loopCycleTimeout: ReturnType<typeof setTimeout> | null = null;
+  let looperStatusTicker: ReturnType<typeof setInterval> | null = null;
 
   root.innerHTML = `
     <div class="osci-app">
@@ -912,6 +979,26 @@ export function createApp(root: HTMLElement): void {
                   },
                 ])}
               </div>
+              <div class="osci-subcard">
+                <div class="osci-card-header">
+                  <p class="osci-subhead">Looper</p>
+                </div>
+                <p id="looper-status" style="font-size:0.62rem;color:var(--text-dim);margin:0;">
+                  Idle — records key presses, not audio. Enter also starts/stops.
+                </p>
+                <div class="osci-button-row">
+                  <button id="looper-record">&#9679; Record</button>
+                  <button id="looper-stop" disabled>Stop</button>
+                  <button id="looper-clear" disabled>Clear</button>
+                </div>
+                ${renderKnobGroup([
+                  {
+                    label: 'Speed',
+                    control: '<input id="looper-speed" type="range" min="0.25" max="4" step="0.05" />',
+                    value: '<span id="looper-speed-label"></span>x',
+                  },
+                ])}
+              </div>
               <div class="osci-subcard osci-subcard--wide">
                 <p class="osci-subhead">Synth Effects</p>
                 ${renderKnobGroup([
@@ -1065,6 +1152,12 @@ export function createApp(root: HTMLElement): void {
   const synthChordsDensityInput = root.querySelector<HTMLInputElement>('#synth-chords-density')!;
   const synthChordsStrumInput = root.querySelector<HTMLInputElement>('#synth-chords-strum')!;
   const synthChordsStrumLabel = root.querySelector<HTMLSpanElement>('#synth-chords-strum-label')!;
+  const looperRecordButton = root.querySelector<HTMLButtonElement>('#looper-record')!;
+  const looperStopButton = root.querySelector<HTMLButtonElement>('#looper-stop')!;
+  const looperClearButton = root.querySelector<HTMLButtonElement>('#looper-clear')!;
+  const looperStatus = root.querySelector<HTMLParagraphElement>('#looper-status')!;
+  const looperSpeedInput = root.querySelector<HTMLInputElement>('#looper-speed')!;
+  const looperSpeedLabel = root.querySelector<HTMLSpanElement>('#looper-speed-label')!;
   const synthDelayTimeInput = root.querySelector<HTMLInputElement>('#synth-delay-time')!;
   const synthDelayTimeLabel = root.querySelector<HTMLSpanElement>('#synth-delay-time-label')!;
   const synthDelayFeedbackInput = root.querySelector<HTMLInputElement>('#synth-delay-feedback')!;
@@ -1110,6 +1203,8 @@ export function createApp(root: HTMLElement): void {
   synthChordsDensityInput.value = String(synthParams.smartChords.density);
   synthChordsStrumInput.value = String(synthParams.smartChords.strumMs);
   synthChordsStrumLabel.textContent = String(synthParams.smartChords.strumMs);
+  looperSpeedInput.value = String(loopSpeed);
+  looperSpeedLabel.textContent = loopSpeed.toFixed(2);
   synthDelayTimeInput.value = String(synthEffects.delayTime);
   synthDelayTimeLabel.textContent = synthEffects.delayTime.toFixed(2);
   synthDelayFeedbackInput.value = String(synthEffects.delayFeedback);
@@ -2287,6 +2382,12 @@ export function createApp(root: HTMLElement): void {
     if (synthGraph) sendSynthParams(synthGraph.node, synthParams);
   });
 
+  looperSpeedInput.addEventListener('input', () => {
+    loopSpeed = Number(looperSpeedInput.value);
+    looperSpeedLabel.textContent = loopSpeed.toFixed(2);
+    refreshLooperStatusText();
+  });
+
   synthDelayTimeInput.addEventListener('input', () => {
     synthEffects.delayTime = Number(synthDelayTimeInput.value);
     synthDelayTimeLabel.textContent = synthEffects.delayTime.toFixed(2);
@@ -2405,13 +2506,142 @@ export function createApp(root: HTMLElement): void {
     return offset === undefined ? undefined : offset + computerKeyboardRootNote;
   }
 
+  function updateLooperUi(): void {
+    looperRecordButton.disabled = looperState === 'recording';
+    looperStopButton.disabled = looperState !== 'recording';
+    looperClearButton.disabled = looperState === 'idle';
+    looperRecordButton.classList.toggle('osci-record-active', looperState === 'recording');
+  }
+
+  function refreshLooperStatusText(): void {
+    if (looperState === 'recording') {
+      const elapsedSec = (performance.now() - loopRecordStartTime) / 1000;
+      looperStatus.textContent = `Recording... ${elapsedSec.toFixed(1)}s`;
+    } else if (looperState === 'playing') {
+      looperStatus.textContent = `Looping — ${(loopLengthMs / 1000).toFixed(1)}s @ ${loopSpeed.toFixed(2)}x, ${loopEvents.length} events`;
+    } else {
+      looperStatus.textContent = 'Idle — records key presses, not audio. Enter also starts/stops.';
+    }
+  }
+
+  function stopLooperStatusTicker(): void {
+    if (looperStatusTicker !== null) {
+      clearInterval(looperStatusTicker);
+      looperStatusTicker = null;
+    }
+  }
+
+  // Stops any scheduled playback (both the per-event timeouts and the
+  // recurring cycle-restart timeout) and releases whatever loop-triggered
+  // notes are still sounding, so stopping mid-note never leaves a voice
+  // stuck on — a stopped/cleared loop must always leave the synth silent.
+  function stopLoopPlayback(): void {
+    for (const timeoutId of loopScheduledTimeouts) clearTimeout(timeoutId);
+    loopScheduledTimeouts = [];
+    if (loopCycleTimeout !== null) {
+      clearTimeout(loopCycleTimeout);
+      loopCycleTimeout = null;
+    }
+    for (const note of activeLoopNotes) triggerNote(note, 0, false);
+    activeLoopNotes.clear();
+  }
+
+  // Schedules one lap of the recorded events, then reschedules itself for
+  // the next lap — a recursive setTimeout chain rather than setInterval, the
+  // same main-thread-timer approach already used for Smart Chords' strum
+  // (a few ms of JS timer jitter is inaudible for this musical-toy use case).
+  //
+  // loopSpeed is read fresh here, once per lap, rather than baked in when
+  // recording stopped — the events themselves are never rescaled, only the
+  // delays used to schedule them, so turning the Speed knob mid-loop takes
+  // effect starting the next lap without retriggering or glitching whatever
+  // is currently playing.
+  function scheduleLoopCycle(): void {
+    const speed = loopSpeed;
+    loopScheduledTimeouts = loopEvents.map((event) =>
+      setTimeout(() => {
+        triggerNote(event.note, event.velocity, event.on);
+        if (event.on) activeLoopNotes.add(event.note);
+        else activeLoopNotes.delete(event.note);
+      }, event.time / speed),
+    );
+    loopCycleTimeout = setTimeout(scheduleLoopCycle, loopLengthMs / speed);
+  }
+
+  function startLooperRecording(): void {
+    stopLoopPlayback();
+    loopEvents = [];
+    recordingOpenNotes.clear();
+    looperState = 'recording';
+    loopRecordStartTime = performance.now();
+    updateLooperUi();
+    refreshLooperStatusText();
+    stopLooperStatusTicker();
+    looperStatusTicker = setInterval(refreshLooperStatusText, 100);
+  }
+
+  function stopLooperRecording(): void {
+    loopLengthMs = performance.now() - loopRecordStartTime;
+    // Close out any note still held when Stop was pressed with a synthetic
+    // off at the loop's very end, so it releases cleanly every lap instead
+    // of hanging open across the loop boundary.
+    for (const note of recordingOpenNotes) {
+      loopEvents.push({ time: loopLengthMs, note, velocity: 0, on: false });
+    }
+    recordingOpenNotes.clear();
+    stopLooperStatusTicker();
+
+    if (loopEvents.length === 0 || loopLengthMs < MIN_LOOP_LENGTH_MS) {
+      looperState = 'idle';
+      loopEvents = [];
+      loopLengthMs = 0;
+    } else {
+      looperState = 'playing';
+      scheduleLoopCycle();
+    }
+    updateLooperUi();
+    refreshLooperStatusText();
+  }
+
+  function clearLooperLoop(): void {
+    stopLoopPlayback();
+    stopLooperStatusTicker();
+    loopEvents = [];
+    loopLengthMs = 0;
+    recordingOpenNotes.clear();
+    looperState = 'idle';
+    updateLooperUi();
+    refreshLooperStatusText();
+  }
+
+  // Enter shortcut: same as pressing Record when idle/playing, same as
+  // pressing Stop when recording — one key does both halves of the gesture
+  // so starting/ending a take doesn't need a mouse trip to the panel.
+  function toggleLooperRecording(): void {
+    if (looperState === 'recording') stopLooperRecording();
+    else startLooperRecording();
+  }
+
   // Shared by both real MIDI input and the computer-keyboard fallback below,
   // so the note visualizer and the synth both react to any note source.
   // When Smart Chords is enabled, one physical note expands into several —
   // the worklet and Arpeggiator need no changes for this, since they just
   // see one noteOn/noteOff per chord tone, indistinguishable from several
   // keys pressed at once (see generateChordNotes()/SmartChords in the plan).
+  //
+  // The looper taps in right here, at the one shared entry point for every
+  // note source, and records the raw physical note before any Smart
+  // Chords/Arp expansion happens below — so a recorded loop replays through
+  // triggerNote() again on each lap and picks up whatever Smart
+  // Chords/Arp/waveform/envelope/effects settings are active *at playback
+  // time*, not whatever they were during recording.
   function triggerNote(note: number, velocity: number, on: boolean): void {
+    if (looperState === 'recording') {
+      loopEvents.push({ time: performance.now() - loopRecordStartTime, note, velocity, on });
+      if (on) recordingOpenNotes.add(note);
+      else recordingOpenNotes.delete(note);
+    }
+
     if (on) {
       const chordNotes = synthParams.smartChordsEnabled ? generateChordNotes(note, synthParams.smartChords) : [note];
       for (const chordNote of chordNotes) {
@@ -2476,26 +2706,55 @@ export function createApp(root: HTMLElement): void {
     computerKeyboardRootNote = Number(synthKeyboardRootSelect.value);
   });
 
+  looperRecordButton.addEventListener('click', () => {
+    startLooperRecording();
+  });
+
+  looperStopButton.addEventListener('click', () => {
+    stopLooperRecording();
+  });
+
+  looperClearButton.addEventListener('click', () => {
+    clearLooperLoop();
+  });
+
+  updateLooperUi();
+  refreshLooperStatusText();
+
   window.addEventListener('keydown', (event) => {
     if (!computerKeyboardEnabled || event.repeat || event.metaKey || event.ctrlKey || event.altKey) return;
-    const target = event.target;
-    // Only genuine free-text fields (the Lua/SVG/L-system textareas, and
-    // single-line text inputs like the text-layer content field) need
-    // protecting from having keystrokes hijacked into notes. A <select>
-    // used to be excluded here too, but that just meant clicking away after
-    // every waveform pick before you could play again — instead, selects
-    // now blur themselves right after a choice (see the 'change' listener
-    // below), so they're never still focused while playing notes and can't
-    // fight over the same keys via their own built-in type-ahead-to-select
-    // behavior (e.g. pressing "S" jumping a focused select to "Square").
-    const isTextEntry =
-      target instanceof HTMLTextAreaElement || (target instanceof HTMLInputElement && target.type === 'text');
-    if (isTextEntry) return;
+    // A <select> used to be excluded here too, but that just meant clicking
+    // away after every waveform pick before you could play again — instead,
+    // selects now blur themselves right after a choice (see the 'change'
+    // listener below), so they're never still focused while playing notes
+    // and can't fight over the same keys via their own built-in
+    // type-ahead-to-select behavior (e.g. pressing "S" jumping a focused
+    // select to "Square").
+    if (isTextEntryTarget(event.target)) return;
     const note = computerKeyboardNote(event.code);
     if (note === undefined || heldComputerKeys.has(event.code)) return;
     event.preventDefault();
     heldComputerKeys.set(event.code, note);
     triggerNote(note, COMPUTER_KEYBOARD_VELOCITY, true);
+  });
+
+  // Independent of computerKeyboardEnabled — the looper is just as useful
+  // recording a real MIDI keyboard as the computer-keyboard fallback, so its
+  // shortcut shouldn't require "Enable Computer Keyboard" to be on. Caps Lock
+  // was tried first but dropped — its keydown/keyup firing is tied to
+  // when the lock actually engages/disengages, which varies enough across
+  // OSes/browsers to not fire reliably on every physical press. Enter
+  // doesn't have that problem, but native <button>/<select> elements
+  // activate on Enter themselves, so this skips out when one of those (not
+  // just a text field) currently has focus — otherwise pressing Enter after
+  // clicking, say, "Enable Synth" would both re-trigger that button AND
+  // toggle the looper.
+  window.addEventListener('keydown', (event) => {
+    if (event.code !== 'Enter' || event.repeat || event.metaKey || event.ctrlKey || event.altKey) return;
+    const target = event.target;
+    if (isTextEntryTarget(target) || target instanceof HTMLButtonElement || target instanceof HTMLSelectElement) return;
+    event.preventDefault();
+    toggleLooperRecording();
   });
 
   window.addEventListener('keyup', (event) => {
