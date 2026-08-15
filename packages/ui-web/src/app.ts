@@ -15,6 +15,7 @@ import {
   VideoTraceSource,
   LuaSource,
   renderPathsToSamples,
+  bakeSampleEffectsIntoPath,
   EffectChain,
   createTransformEffect,
   createBitcrushEffect,
@@ -1265,7 +1266,17 @@ export function createApp(root: HTMLElement): void {
       const allPaths: Path[] = [];
       for (let i = 0; i < layers.length; i++) {
         const layerChain = new EffectChain(layers[i].effects.map(toEngineEffect));
-        allPaths.push(...layerChain.applyToPaths(cachedSources[i].render(t), { t }));
+        const layerPaths = layerChain.applyToPaths(cachedSources[i].render(t), { t });
+        // A layer's own sample-stage effects (Bitcrush) never had anywhere
+        // to run before — only applyToPaths was ever called per-layer. Bake
+        // them into the path geometry itself here so per-layer Bitcrush
+        // actually does something, without changing anything about how
+        // layers without one get merged (see bakeSampleEffectsIntoPath).
+        if (layerChain.hasSampleEffects()) {
+          allPaths.push(...layerPaths.map((path) => bakeSampleEffectsIntoPath(path, layerChain, { t })));
+        } else {
+          allPaths.push(...layerPaths);
+        }
       }
       const paths = chain.applyToPaths(allPaths, { t });
       rendered = renderPathsToSamples(paths, {

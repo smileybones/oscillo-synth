@@ -27,6 +27,7 @@ export { renderPathsToSamples } from './render/path-to-samples';
 export type { RenderConfig, SampleBuffer } from './render/path-to-samples';
 export { optimizeTravelOrder } from './render/travel-optimizer';
 export { resamplePathToSamples, quinticEase } from './render/interpolation';
+export { bakeSampleEffectsIntoPath } from './render/bake-sample-effects';
 export type { Effect, EffectContext } from './effects/effect';
 export { EffectChain } from './effects/chain';
 export { createTransformEffect } from './effects/transform';

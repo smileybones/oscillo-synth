@@ -9,6 +9,13 @@ import type { Effect, EffectContext } from './effect';
 export class EffectChain {
   constructor(private effects: Effect[]) {}
 
+  // Lets a caller skip sample-stage work entirely when nothing in the chain
+  // needs it (see bakeSampleEffectsIntoPath) — the common case, since most
+  // chains are path-only effects like Transform.
+  hasSampleEffects(): boolean {
+    return this.effects.some((effect) => effect.processSample !== undefined);
+  }
+
   applyToPaths(paths: Path[], ctx: EffectContext): Path[] {
     return this.effects.reduce(
       (current, effect) => (effect.processPaths ? effect.processPaths(current, ctx) : current),
