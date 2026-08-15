@@ -2,6 +2,8 @@
 
 A browser-based oscilloscope art and synth instrument. Draw shapes, SVGs, text, L-systems, 3D objects, video, or Lua scripts as an X/Y trace on a real oscilloscope (or the on-screen preview) — and play a full synth alongside it, built for making music with a scope as the visualizer.
 
+**[Try it live](https://smileybones.github.io/oscillo-synth/)** — runs entirely in your browser, nothing to install.
+
 ![oscillo-synth screenshot](docs/screenshot.png)
 
 > **Note:** the X/Y output hasn't been tested on a real oscilloscope yet — it's only been verified against the on-screen preview so far. If you try it on actual hardware, keep the output level low to start, and let us know how it goes.
